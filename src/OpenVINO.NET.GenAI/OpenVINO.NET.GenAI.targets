@@ -1,0 +1,55 @@
+<Project>
+  
+  <PropertyGroup>
+    <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
+  </PropertyGroup>
+
+  <!-- Copy native DLLs to output directory -->
+  <Target Name="CopyOpenVINOGenAINativeLibraries" BeforeTargets="Build" Condition="'$(TargetFramework)' != '' AND '$(RuntimeIdentifier)' != 'browser-wasm'">
+    
+    <!-- Include all DLLs from the runtime directory -->
+    <ItemGroup>
+      <OpenVINOGenAINativeLibraries Include="$(OpenVINOGenAIRuntimePath)\*.dll" />
+    </ItemGroup>
+
+    <!-- Copy DLLs to output directory -->
+    <Copy 
+      SourceFiles="@(OpenVINOGenAINativeLibraries)" 
+      DestinationFolder="$(OutputPath)" 
+      SkipUnchangedFiles="true"
+      Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+
+    <!-- Also copy to intermediate output directory for debugging -->
+    <Copy 
+      SourceFiles="@(OpenVINOGenAINativeLibraries)" 
+      DestinationFolder="$(IntermediateOutputPath)" 
+      SkipUnchangedFiles="true"
+      Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+
+    <Message Text="OpenVINO GenAI: Copied native libraries from $(OpenVINOGenAIRuntimePath) to $(OutputPath)" 
+             Importance="normal" 
+             Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+
+    <Warning Text="OpenVINO GenAI: Native libraries not found at $(OpenVINOGenAIRuntimePath). Please ensure the native binaries are available." 
+             Condition="!Exists('$(OpenVINOGenAIRuntimePath)')" />
+  </Target>
+
+  <!-- For publish scenarios -->
+  <Target Name="PublishOpenVINOGenAINativeLibraries" BeforeTargets="PublishBuild" Condition="'$(PublishDir)' != ''">
+    
+    <ItemGroup>
+      <OpenVINOGenAINativeLibraries Include="$(OpenVINOGenAIRuntimePath)\*.dll" />
+    </ItemGroup>
+
+    <Copy 
+      SourceFiles="@(OpenVINOGenAINativeLibraries)" 
+      DestinationFolder="$(PublishDir)" 
+      SkipUnchangedFiles="true"
+      Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+
+    <Message Text="OpenVINO GenAI: Published native libraries from $(OpenVINOGenAIRuntimePath) to $(PublishDir)" 
+             Importance="normal" 
+             Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+  </Target>
+
+</Project>

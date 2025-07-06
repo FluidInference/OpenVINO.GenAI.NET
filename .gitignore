@@ -1,0 +1,17 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.sln.docstates
+
+# Build Folders
+[Bb]uild/
+[Bb]in/
+[Oo]bj/
+
+# NuGet
+nuget/
+*.nupkg
+
+# Archives
+*.zip

@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <Authors>OpenVINO.NET Contributors</Authors>
+    <Company>OpenVINO.NET</Company>
+    <Product>OpenVINO.NET GenAI</Product>
+    <Description>A comprehensive C# wrapper for OpenVINO GenAI, providing idiomatic .NET APIs for AI inference and generative AI tasks. Includes async/await support, streaming generation, and automatic native library management.</Description>
+    <PackageProjectUrl>https://github.com/openvinotoolkit/openvino-csharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/openvinotoolkit/openvino-csharp</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>openvino;ai;inference;llm;genai;machine-learning;deep-learning;neural-networks;text-generation</PackageTags>
+    <AssemblyVersion>2025.2.0.0</AssemblyVersion>
+    <FileVersion>2025.2.0.0</FileVersion>
+    <Version>2025.2.0-rc4</Version>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <PackageReleaseNotes>
+      OpenVINO.NET GenAI 2025.2.0-rc4
+      
+      Features:
+      - Complete C# wrapper for OpenVINO GenAI C API
+      - Async/await support for all operations
+      - Streaming text generation with IAsyncEnumerable
+      - Fluent API for generation configuration
+      - Chat session management
+      - Comprehensive error handling
+      - Automatic native library deployment
+      - SafeHandle-based resource management
+      
+      Requirements:
+      - .NET 6.0 or later
+      - Windows x64
+      - OpenVINO GenAI 2025.2.0.0-rc4 runtime
+    </PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>full</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>pdbonly</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+    <PackageReference Include="System.Threading.Channels" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenVINO.NET.Core\OpenVINO.NET.Core.csproj" />
+    <ProjectReference Include="..\OpenVINO.NET.Native\OpenVINO.NET.Native.csproj" />
+  </ItemGroup>
+
+  <!-- Include native libraries in NuGet package -->
+  <ItemGroup Condition="Exists('..\..\build\native\runtimes\win-x64\native')">
+    <Content Include="..\..\build\native\runtimes\win-x64\native\*.dll">
+      <PackagePath>runtimes\win-x64\native\%(Filename)%(Extension)</PackagePath>
+      <Pack>true</Pack>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Include MSBuild targets in NuGet package -->
+  <ItemGroup>
+    <Content Include="OpenVINO.NET.GenAI.targets">
+      <PackagePath>build\OpenVINO.NET.GenAI.targets</PackagePath>
+      <Pack>true</Pack>
+    </Content>
+  </ItemGroup>
+
+  <!-- Include README in NuGet package -->
+  <ItemGroup>
+    <None Include="..\..\README.md">
+      <PackagePath>README.md</PackagePath>
+      <Pack>true</Pack>
+    </None>
+  </ItemGroup>
+
+  <!-- Import MSBuild targets for native library deployment -->
+  <Import Project="OpenVINO.NET.GenAI.targets" />
+
+</Project>
