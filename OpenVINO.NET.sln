@@ -18,6 +18,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TextGeneration.Sample", "sa
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StreamingChat.Sample", "samples\StreamingChat\StreamingChat.Sample.csproj", "{A2D4D07B-F0B7-4E9F-9F1A-2B6E5D1B4B7B}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QuickDemo", "samples\QuickDemo\QuickDemo.csproj", "{C2D4D07B-F0B7-4E9F-9F1A-2B6E5D1B4B7B}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OpenVINO.NET.GenAI.Tests", "tests\OpenVINO.NET.GenAI.Tests\OpenVINO.NET.GenAI.Tests.csproj", "{B2D4D07B-F0B7-4E9F-9F1A-2B6E5D1B4B7B}"
 EndProject
 Global

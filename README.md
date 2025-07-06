@@ -58,6 +58,3 @@ await foreach (var token in pipeline.GenerateStreamAsync("Tell me a story", conf
 dotnet build OpenVINO.NET.sln
 ```
 
-## License
-
-MIT License

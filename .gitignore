@@ -15,3 +15,5 @@ nuget/
 
 # Archives
 *.zip
+
+.vscode/
