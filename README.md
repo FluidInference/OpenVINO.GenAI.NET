@@ -12,7 +12,7 @@ A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic 
 
 ## Requirements
 
-- .NET 6.0 or later
+- .NET 9.0 or later
 - Windows x64
 - OpenVINO GenAI 2025.2.0.0-rc4 runtime
 
@@ -135,7 +135,7 @@ await foreach (var token in pipeline.GenerateStreamAsync("Tell me a story", conf
 
 ### Prerequisites
 
-1. **Install .NET 6.0 SDK or later**
+1. **Install .NET 9.0 SDK or later**
    - Download from: https://dotnet.microsoft.com/download
 
 2. **Install OpenVINO GenAI Runtime 2025.2.0.0-rc4**
@@ -228,7 +228,7 @@ export OPENVINO_LOG_LEVEL=DEBUG
 
 1. **Install Prerequisites**
    - Visual Studio 2022 or VS Code with C# extension
-   - .NET 6.0 SDK
+   - .NET 9.0 SDK
    - OpenVINO GenAI runtime
 
 2. **Build and Test**

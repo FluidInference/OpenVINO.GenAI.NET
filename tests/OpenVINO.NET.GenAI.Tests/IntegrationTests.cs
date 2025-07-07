@@ -19,14 +19,14 @@ public class IntegrationTests : IDisposable
     public IntegrationTests(ITestOutputHelper output)
     {
         _output = output;
-        
+
         // Check for model path from environment variable or default location
-        _modelPath = Environment.GetEnvironmentVariable("QUICKDEMO_MODEL_PATH") 
+        _modelPath = Environment.GetEnvironmentVariable("QUICKDEMO_MODEL_PATH")
             ?? Path.Combine(GetProjectRoot(), "Models", "qwen3-0.6b-int4-ov");
-            
-        _modelAvailable = Directory.Exists(_modelPath) && 
+
+        _modelAvailable = Directory.Exists(_modelPath) &&
             File.Exists(Path.Combine(_modelPath, "openvino_model.xml"));
-            
+
         if (!_modelAvailable)
         {
             _output.WriteLine($"Model not found at: {_modelPath}");
@@ -53,10 +53,10 @@ public class IntegrationTests : IDisposable
 
         // Assert
         Assert.NotNull(result);
-        Assert.NotEmpty(result);
-        Assert.Contains("Paris", result, StringComparison.OrdinalIgnoreCase);
-        
-        _output.WriteLine($"Generated text: {result}");
+        Assert.NotEmpty(result.Text);
+        Assert.Contains("Paris", result.Text);
+
+        _output.WriteLine($"Generated text: {result.Text}");
     }
 
     [SkippableIntegrationFact]
@@ -92,7 +92,7 @@ public class IntegrationTests : IDisposable
         Assert.True(tokens.Count > 5, "Should generate multiple tokens");
         Assert.NotNull(firstTokenTime);
         Assert.True(firstTokenTime.Value.TotalMilliseconds < 2000, "First token should arrive within 2 seconds");
-        
+
         var fullText = string.Join("", tokens);
         _output.WriteLine($"Generated {tokens.Count} tokens in {stopwatch.ElapsedMilliseconds}ms");
         _output.WriteLine($"First token latency: {firstTokenTime.Value.TotalMilliseconds}ms");
@@ -165,24 +165,24 @@ public class IntegrationTests : IDisposable
 
         // Arrange
         using var pipeline = new LLMPipeline(_modelPath, "CPU");
-        using var session = new ChatSession(pipeline);
+        using var session = pipeline.StartChatSession();
         var config = GenerationConfig.Default
             .WithMaxTokens(30)
             .WithTemperature(0.7f)
             .WithSampling(true);
 
         // Act
-        var response1 = await session.SendAsync("My name is Alice.", config);
-        var response2 = await session.SendAsync("What is my name?", config);
+        var response1 = await session.SendMessageAsync("My name is Alice.", config);
+        var response2 = await session.SendMessageAsync("What is my name?", config);
 
         // Assert
-        Assert.NotEmpty(response1);
-        Assert.NotEmpty(response2);
+        Assert.NotEmpty(response1.Text);
+        Assert.NotEmpty(response2.Text);
         // The model should remember the name from context
-        Assert.Contains("Alice", response2, StringComparison.OrdinalIgnoreCase);
-        
-        _output.WriteLine($"First response: {response1}");
-        _output.WriteLine($"Second response: {response2}");
+        Assert.Contains("Alice", response2.Text);
+
+        _output.WriteLine($"First response: {response1.Text}");
+        _output.WriteLine($"Second response: {response2.Text}");
     }
 
     private static string GetProjectRoot()
@@ -209,11 +209,23 @@ public class SkippableIntegrationFactAttribute : FactAttribute
     public SkippableIntegrationFactAttribute()
     {
         // Only run integration tests in CI or when explicitly requested
-        if (Environment.GetEnvironmentVariable("CI") != "true" && 
+        if (Environment.GetEnvironmentVariable("CI") != "true" &&
             Environment.GetEnvironmentVariable("RUN_INTEGRATION_TESTS") != "true")
         {
             Skip = "Integration tests are skipped by default. Set RUN_INTEGRATION_TESTS=true to run them.";
         }
+    }
+}
+
+/// <summary>
+/// Custom fact attribute that marks tests as skippable when native library is not available
+/// </summary>
+public class SkippableNativeFactAttribute : FactAttribute
+{
+    public SkippableNativeFactAttribute()
+    {
+        // Tests that require native DLLs will be skipped if not available
+        // This is handled by the Skip.IfNot() call in each test method
     }
 }
 

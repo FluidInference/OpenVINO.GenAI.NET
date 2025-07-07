@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -34,7 +34,7 @@
       - SafeHandle-based resource management
       
       Requirements:
-      - .NET 6.0 or later
+      - .NET 9.0 or later
       - Windows x64
       - OpenVINO GenAI 2025.2.0.0-rc4 runtime
     </PackageReleaseNotes>

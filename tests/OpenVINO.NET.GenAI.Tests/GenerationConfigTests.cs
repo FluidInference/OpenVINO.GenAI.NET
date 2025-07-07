@@ -5,9 +5,24 @@ namespace OpenVINO.NET.GenAI.Tests;
 
 public class GenerationConfigTests
 {
-    [Fact]
+    private static bool IsNativeLibraryAvailable()
+    {
+        try
+        {
+            using var config = new GenerationConfig();
+            return true;
+        }
+        catch (System.DllNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    [SkippableNativeFact]
     public void Constructor_CreatesValidConfig()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Act
         using var config = new GenerationConfig();
 
@@ -15,9 +30,11 @@ public class GenerationConfigTests
         Assert.NotNull(config);
     }
 
-    [Fact]
+    [SkippableNativeFact]
     public void WithMaxTokens_SetsValue()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Arrange
         using var config = new GenerationConfig();
         const int expectedTokens = 100;
@@ -29,9 +46,11 @@ public class GenerationConfigTests
         Assert.Equal(expectedTokens, config.GetMaxNewTokens());
     }
 
-    [Fact]
+    [SkippableNativeFact]
     public void WithMaxTokens_NegativeValue_ThrowsException()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Arrange
         using var config = new GenerationConfig();
 
@@ -39,9 +58,11 @@ public class GenerationConfigTests
         Assert.Throws<ArgumentOutOfRangeException>(() => config.WithMaxTokens(-1));
     }
 
-    [Fact]
+    [SkippableNativeFact]
     public void WithTemperature_NegativeValue_ThrowsException()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Arrange
         using var config = new GenerationConfig();
 
@@ -49,9 +70,11 @@ public class GenerationConfigTests
         Assert.Throws<ArgumentOutOfRangeException>(() => config.WithTemperature(-0.1f));
     }
 
-    [Fact]
+    [SkippableNativeFact]
     public void WithTopP_InvalidRange_ThrowsException()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Arrange
         using var config = new GenerationConfig();
 
@@ -60,9 +83,11 @@ public class GenerationConfigTests
         Assert.Throws<ArgumentOutOfRangeException>(() => config.WithTopP(1.1f));
     }
 
-    [Fact]
+    [SkippableNativeFact]
     public void WithTopP_ValidRange_DoesNotThrow()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Arrange
         using var config = new GenerationConfig();
 
@@ -72,9 +97,11 @@ public class GenerationConfigTests
         config.WithTopP(1.0f);
     }
 
-    [Fact]
+    [SkippableNativeFact]
     public void FluentAPI_CanChainMethods()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Arrange & Act
         using var config = GenerationConfig.Default
             .WithMaxTokens(150)
@@ -87,9 +114,11 @@ public class GenerationConfigTests
         Assert.Equal(150, config.GetMaxNewTokens());
     }
 
-    [Fact]
+    [SkippableNativeFact]
     public void Dispose_CanBeCalledMultipleTimes()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Arrange
         var config = new GenerationConfig();
 
@@ -98,9 +127,11 @@ public class GenerationConfigTests
         config.Dispose();
     }
 
-    [Fact]
+    [SkippableNativeFact]
     public void AfterDispose_ThrowsObjectDisposedException()
     {
+        Skip.IfNot(IsNativeLibraryAvailable(), "Native OpenVINO library not available");
+
         // Arrange
         var config = new GenerationConfig();
         config.Dispose();

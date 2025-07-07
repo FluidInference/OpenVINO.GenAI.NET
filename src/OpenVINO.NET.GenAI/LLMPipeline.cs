@@ -27,11 +27,11 @@ public sealed class LLMPipeline : IDisposable
             throw new ArgumentException("Device cannot be null or empty", nameof(device));
 
         var status = GenAINativeMethods.ov_genai_llm_pipeline_create(
-            modelPath, 
-            device, 
+            modelPath,
+            device,
             0, // No properties for now
             out var handle);
-        
+
         OpenVINOGenAIException.ThrowIfError(status, "create LLM pipeline");
         _handle = new LLMPipelineSafeHandle(handle, true);
     }
@@ -49,16 +49,16 @@ public sealed class LLMPipeline : IDisposable
             throw new ArgumentException("Prompt cannot be null or empty", nameof(prompt));
 
         var configHandle = config?.Handle ?? IntPtr.Zero;
-        
+
         var status = GenAINativeMethods.ov_genai_llm_pipeline_generate(
             _handle.DangerousGetHandle(),
             prompt,
             configHandle,
             IntPtr.Zero, // No streamer
             out var resultsHandle);
-        
+
         OpenVINOGenAIException.ThrowIfError(status, "generate text");
-        
+
         return new GenerationResult(new DecodedResultsSafeHandle(resultsHandle, true));
     }
 
@@ -70,8 +70,8 @@ public sealed class LLMPipeline : IDisposable
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The generation result</returns>
     public async Task<GenerationResult> GenerateAsync(
-        string prompt, 
-        GenerationConfig? config = null, 
+        string prompt,
+        GenerationConfig? config = null,
         CancellationToken cancellationToken = default)
     {
         // Run the synchronous generation on a background thread
@@ -118,7 +118,7 @@ public sealed class LLMPipeline : IDisposable
                 {
                     var streamerPtr = System.Runtime.InteropServices.Marshal.AllocHGlobal(
                         System.Runtime.InteropServices.Marshal.SizeOf<streamer_callback>());
-                    
+
                     try
                     {
                         System.Runtime.InteropServices.Marshal.StructureToPtr(streamerCallback, streamerPtr, false);
@@ -175,7 +175,7 @@ public sealed class LLMPipeline : IDisposable
     public void StartChat()
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_llm_pipeline_start_chat(_handle.DangerousGetHandle());
         OpenVINOGenAIException.ThrowIfError(status, "start chat");
     }
@@ -186,7 +186,7 @@ public sealed class LLMPipeline : IDisposable
     public void FinishChat()
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_llm_pipeline_finish_chat(_handle.DangerousGetHandle());
         OpenVINOGenAIException.ThrowIfError(status, "finish chat");
     }
@@ -198,13 +198,13 @@ public sealed class LLMPipeline : IDisposable
     public GenerationConfig GetGenerationConfig()
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_llm_pipeline_get_generation_config(
-            _handle.DangerousGetHandle(), 
+            _handle.DangerousGetHandle(),
             out var configHandle);
-        
+
         OpenVINOGenAIException.ThrowIfError(status, "get generation config");
-        
+
         return new GenerationConfig(new GenerationConfigSafeHandle(configHandle, true));
     }
 
@@ -216,11 +216,11 @@ public sealed class LLMPipeline : IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(config);
-        
+
         var status = GenAINativeMethods.ov_genai_llm_pipeline_set_generation_config(
-            _handle.DangerousGetHandle(), 
+            _handle.DangerousGetHandle(),
             config.Handle);
-        
+
         OpenVINOGenAIException.ThrowIfError(status, "set generation config");
     }
 
@@ -292,7 +292,7 @@ internal sealed class StreamingCallbackData
 /// </summary>
 internal static class StreamingCallbackFunction
 {
-    public static readonly IntPtr FunctionPointer = 
+    public static readonly IntPtr FunctionPointer =
         System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate<StreamerCallbackFunc>(CallbackImpl);
 
     private static ov_genai_streamming_status_e CallbackImpl(string str, IntPtr args)
