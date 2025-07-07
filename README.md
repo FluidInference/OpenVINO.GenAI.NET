@@ -2,6 +2,8 @@
 
 A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic .NET APIs for AI inference and generative AI tasks.
 
+**This is very much so in progress. Please do not use yet :). If this is something that might be helpful, leave an issue and let us know your usecase and we can try to incorporate as needed or else the main focus will be on Windows .NET apps **
+
 ## Features
 
 - **OpenVINO.NET.Core**: Core OpenVINO functionality for model inference
