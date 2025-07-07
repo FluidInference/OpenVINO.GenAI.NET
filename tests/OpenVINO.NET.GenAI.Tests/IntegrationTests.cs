@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
+using Xunit.Sdk;
 using OpenVINO.NET.GenAI;
 
 namespace OpenVINO.NET.GenAI.Tests;
@@ -34,7 +35,7 @@ public class IntegrationTests : IDisposable
         }
     }
 
-    [SkippableIntegrationFact]
+    [SkippableFact]
     [Trait("Category", "Integration")]
     public async Task LLMPipeline_BasicInference_GeneratesText()
     {
@@ -60,7 +61,7 @@ public class IntegrationTests : IDisposable
         _output.WriteLine($"Generated text: {result.Text}");
     }
 
-    [SkippableIntegrationFact]
+    [SkippableFact]
     [Trait("Category", "Integration")]
     public async Task LLMPipeline_StreamingGeneration_ProducesTokens()
     {
@@ -101,7 +102,7 @@ public class IntegrationTests : IDisposable
         _output.WriteLine($"Generated text: {fullText}");
     }
 
-    [SkippableIntegrationFact]
+    [SkippableFact]
     [Trait("Category", "Integration")]
     public async Task LLMPipeline_WithCancellation_StopsGeneration()
     {
@@ -140,7 +141,7 @@ public class IntegrationTests : IDisposable
         _output.WriteLine($"Generated {tokens.Count} tokens before cancellation");
     }
 
-    [SkippableIntegrationFact]
+    [SkippableFact]
     [Trait("Category", "Integration")]
     public void LLMPipeline_InvalidDevice_FallsBackToCPU()
     {
@@ -162,7 +163,7 @@ public class IntegrationTests : IDisposable
         }
     }
 
-    [SkippableIntegrationFact]
+    [SkippableFact]
     [Trait("Category", "Integration")]
     public async Task ChatSession_MaintainsContext()
     {
@@ -206,33 +207,6 @@ public class IntegrationTests : IDisposable
     }
 }
 
-/// <summary>
-/// Custom fact attribute that marks tests as skippable integration tests
-/// </summary>
-public class SkippableIntegrationFactAttribute : FactAttribute
-{
-    public SkippableIntegrationFactAttribute()
-    {
-        // Only run integration tests in CI or when explicitly requested
-        if (Environment.GetEnvironmentVariable("CI") != "true" &&
-            Environment.GetEnvironmentVariable("RUN_INTEGRATION_TESTS") != "true")
-        {
-            Skip = "Integration tests are skipped by default. Set RUN_INTEGRATION_TESTS=true to run them.";
-        }
-    }
-}
-
-/// <summary>
-/// Custom fact attribute that marks tests as skippable when native library is not available
-/// </summary>
-public class SkippableNativeFactAttribute : FactAttribute
-{
-    public SkippableNativeFactAttribute()
-    {
-        // Tests that require native DLLs will be skipped if not available
-        // This is handled by the Skip.IfNot() call in each test method
-    }
-}
 
 /// <summary>
 /// Helper class for skipping tests conditionally
@@ -243,7 +217,7 @@ public static class Skip
     {
         if (!condition)
         {
-            throw new Xunit.SkipException(reason);
+            throw new SkipException(reason);
         }
     }
 }

@@ -111,10 +111,7 @@ jobs:
             --verbosity normal `
             --logger "trx;LogFileName=test-results.trx" `
             --collect:"XPlat Code Coverage" `
-            --results-directory ./TestResults `
-            --filter "Category!=Integration"
-        env:
-          RUN_INTEGRATION_TESTS: false
+            --results-directory ./TestResults
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
