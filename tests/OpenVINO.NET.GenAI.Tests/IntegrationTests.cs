@@ -35,6 +35,7 @@ public class IntegrationTests : IDisposable
     }
 
     [SkippableIntegrationFact]
+    [Trait("Category", "Integration")]
     public async Task LLMPipeline_BasicInference_GeneratesText()
     {
         Skip.IfNot(_modelAvailable, "Model not available for integration testing");
@@ -60,6 +61,7 @@ public class IntegrationTests : IDisposable
     }
 
     [SkippableIntegrationFact]
+    [Trait("Category", "Integration")]
     public async Task LLMPipeline_StreamingGeneration_ProducesTokens()
     {
         Skip.IfNot(_modelAvailable, "Model not available for integration testing");
@@ -100,6 +102,7 @@ public class IntegrationTests : IDisposable
     }
 
     [SkippableIntegrationFact]
+    [Trait("Category", "Integration")]
     public async Task LLMPipeline_WithCancellation_StopsGeneration()
     {
         Skip.IfNot(_modelAvailable, "Model not available for integration testing");
@@ -138,6 +141,7 @@ public class IntegrationTests : IDisposable
     }
 
     [SkippableIntegrationFact]
+    [Trait("Category", "Integration")]
     public void LLMPipeline_InvalidDevice_FallsBackToCPU()
     {
         Skip.IfNot(_modelAvailable, "Model not available for integration testing");
@@ -159,6 +163,7 @@ public class IntegrationTests : IDisposable
     }
 
     [SkippableIntegrationFact]
+    [Trait("Category", "Integration")]
     public async Task ChatSession_MaintainsContext()
     {
         Skip.IfNot(_modelAvailable, "Model not available for integration testing");
@@ -238,15 +243,7 @@ public static class Skip
     {
         if (!condition)
         {
-            throw new SkipException(reason);
+            throw new Xunit.SkipException(reason);
         }
     }
-}
-
-/// <summary>
-/// Exception thrown when a test should be skipped
-/// </summary>
-public class SkipException : Exception
-{
-    public SkipException(string reason) : base(reason) { }
 }
