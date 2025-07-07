@@ -79,6 +79,14 @@ class Program
 
     static async Task<string> EnsureModelDownloadedAsync()
     {
+        // Check for environment variable override (used in CI)
+        var envModelPath = Environment.GetEnvironmentVariable("QUICKDEMO_MODEL_PATH");
+        if (!string.IsNullOrEmpty(envModelPath) && Directory.Exists(envModelPath))
+        {
+            Console.WriteLine($"✓ Using model from environment variable: {envModelPath}");
+            return envModelPath;
+        }
+        
         var modelPath = Path.Combine(ModelsDirectory, ModelId.Split('/')[1]);
         
         if (Directory.Exists(modelPath) && Directory.GetFiles(modelPath, "*.xml").Length > 0)

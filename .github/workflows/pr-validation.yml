@@ -1,0 +1,109 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'samples/**'
+      - '*.sln'
+      - '*.csproj'
+      - '.github/workflows/pr-validation.yml'
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: windows-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          6.0.x
+          7.0.x
+          8.0.x
+        
+    - name: Cache NuGet packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+          
+    - name: Restore dependencies
+      run: dotnet restore OpenVINO.NET.sln
+      
+    - name: Build solution
+      run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
+      
+    - name: Run unit tests
+      run: |
+        dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj `
+          --configuration Release `
+          --no-build `
+          --verbosity normal `
+          --logger "trx;LogFileName=test-results.trx" `
+          --collect:"XPlat Code Coverage" `
+          --results-directory ./TestResults
+          
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: TestResults/
+        
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: .NET Test Results
+        path: TestResults/*.trx
+        reporter: dotnet-trx
+        fail-on-error: true
+        
+    - name: Code Coverage Report
+      uses: irongut/CodeCoverageSummary@v1.3.0
+      with:
+        filename: TestResults/**/coverage.cobertura.xml
+        badge: true
+        format: markdown
+        output: both
+        
+    - name: Add Coverage PR Comment
+      uses: marocchino/sticky-pull-request-comment@v2
+      if: github.event_name == 'pull_request'
+      with:
+        recreate: true
+        path: code-coverage-results.md
+        
+  code-quality:
+    name: Code Quality Checks
+    runs-on: windows-latest
+    timeout-minutes: 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 6.0.x
+        
+    - name: Restore dependencies
+      run: dotnet restore OpenVINO.NET.sln
+      
+    - name: Check formatting
+      run: dotnet format OpenVINO.NET.sln --verify-no-changes --verbosity diagnostic
+      
+    - name: Run code analysis
+      run: |
+        dotnet build OpenVINO.NET.sln --configuration Release /p:EnableNETAnalyzers=true /p:AnalysisMode=AllEnabledByDefault
