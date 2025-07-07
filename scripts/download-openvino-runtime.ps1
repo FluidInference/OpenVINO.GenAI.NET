@@ -41,10 +41,9 @@ if (Test-Path $extractedPath) {
 }
 
 # Download URL
-$baseUrl = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/windows"
-$versionFolder = $Version.Split('.')[0] + "." + $Version.Split('.')[1]
+$baseUrl = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/pre-release"
 $fileName = "openvino_genai_windows_${Version}_x86_64.zip"
-$url = "$baseUrl/$versionFolder/$fileName"
+$url = "$baseUrl/$Version/$fileName"
 
 Write-Host "Downloading from: $url" -ForegroundColor Yellow
 $zipPath = Join-Path $fullOutputPath $fileName
