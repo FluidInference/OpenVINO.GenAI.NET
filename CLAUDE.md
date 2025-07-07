@@ -91,3 +91,6 @@ dotnet run --project samples/QuickDemo -- --benchmark
 - **Focus**: Device selection and benchmark comparisons
 - **Avoid**: Overly complex CLI interfaces
 - **Emphasize**: "Just works" experience with automatic model download
+
+## Project Configuration and Environment Notes
+- Remember the important configuration, environment and test changes
