@@ -1,18 +1,18 @@
 cmake_minimum_required(VERSION 3.15)
-project(whisper_wrapper)
+project(openvino_genai_wrapper)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Define the whisper wrapper library
-add_library(whisper_wrapper SHARED
+# Define the complete OpenVINO GenAI wrapper library
+add_library(openvino_genai_wrapper SHARED
     whisper_wrapper.cpp
     whisper_wrapper.hpp
 )
 
 # Set the export definition for Windows
 if(WIN32)
-    target_compile_definitions(whisper_wrapper PRIVATE WHISPER_WRAPPER_EXPORTS)
+    target_compile_definitions(openvino_genai_wrapper PRIVATE WHISPER_WRAPPER_EXPORTS)
 endif()
 
 # Find OpenVINO GenAI - try different approaches
@@ -48,10 +48,14 @@ if(NOT OpenVINOGenAI_FOUND)
 endif()
 
 # Link against OpenVINO GenAI
-target_link_libraries(whisper_wrapper PRIVATE openvino::genai)
+target_link_libraries(openvino_genai_wrapper PRIVATE openvino::genai)
+
+# Ensure include directories are properly set
+target_include_directories(openvino_genai_wrapper PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Set the output name to match what our C# code expects
-set_target_properties(whisper_wrapper PROPERTIES
+set_target_properties(openvino_genai_wrapper PROPERTIES
     OUTPUT_NAME "openvino_genai_c"
     PREFIX ""
 )
@@ -59,7 +63,7 @@ set_target_properties(whisper_wrapper PROPERTIES
 # Ensure we copy the output to the appropriate runtime directory
 if(WIN32)
     set(RUNTIME_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/../../build/native/runtimes/win-x64/native")
-    set_target_properties(whisper_wrapper PROPERTIES
+    set_target_properties(openvino_genai_wrapper PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${RUNTIME_OUTPUT_DIR}"
         RUNTIME_OUTPUT_DIRECTORY_DEBUG "${RUNTIME_OUTPUT_DIR}"
         RUNTIME_OUTPUT_DIRECTORY_RELEASE "${RUNTIME_OUTPUT_DIR}"
@@ -67,7 +71,7 @@ if(WIN32)
 endif()
 
 # Install the library
-install(TARGETS whisper_wrapper
+install(TARGETS openvino_genai_wrapper
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib

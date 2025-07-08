@@ -140,3 +140,93 @@ WHISPER_WRAPPER_API ov_status_e ov_genai_whisper_perf_metrics_get_features_extra
     void* metrics, float* mean, float* std);
 
 WHISPER_WRAPPER_API void ov_genai_whisper_perf_metrics_free(void* metrics);
+
+// LLM Pipeline functions
+WHISPER_WRAPPER_API ov_status_e ov_genai_llm_pipeline_create(
+    const char* models_path,
+    const char* device,
+    size_t property_args_size,
+    void** pipe);
+
+WHISPER_WRAPPER_API void ov_genai_llm_pipeline_free(void* pipe);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_llm_pipeline_generate(
+    void* pipe,
+    const char* input_text,
+    void* config,
+    void* streamer,
+    void** results);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_llm_pipeline_start_chat(void* pipe);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_llm_pipeline_finish_chat(void* pipe);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_llm_pipeline_get_generation_config(
+    void* pipe,
+    void** config);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_llm_pipeline_set_generation_config(
+    void* pipe,
+    void* config);
+
+// Generation Config functions
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_create(void** config);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_create_from_json(
+    const char* json_config,
+    void** config);
+
+WHISPER_WRAPPER_API void ov_genai_generation_config_free(void* config);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_max_new_tokens(
+    void* config, size_t max_new_tokens);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_max_length(
+    void* config, size_t max_length);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_temperature(
+    void* config, float temperature);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_top_p(
+    void* config, float top_p);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_top_k(
+    void* config, size_t top_k);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_do_sample(
+    void* config, bool do_sample);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_repetition_penalty(
+    void* config, float repetition_penalty);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_presence_penalty(
+    void* config, float presence_penalty);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_frequency_penalty(
+    void* config, float frequency_penalty);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_set_stop_strings(
+    void* config,
+    const char** stop_strings,
+    size_t stop_strings_size);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_get_max_new_tokens(
+    void* config, size_t* max_new_tokens);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_generation_config_validate(void* config);
+
+// Decoded Results functions  
+WHISPER_WRAPPER_API ov_status_e ov_genai_decoded_results_create(void** results);
+
+WHISPER_WRAPPER_API void ov_genai_decoded_results_free(void* results);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_decoded_results_get_string(
+    void* results,
+    void* output,
+    size_t output_size);
+
+WHISPER_WRAPPER_API ov_status_e ov_genai_decoded_results_get_perf_metrics(
+    void* results,
+    void** metrics);
+
+WHISPER_WRAPPER_API void ov_genai_decoded_results_perf_metrics_free(void* metrics);

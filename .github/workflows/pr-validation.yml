@@ -95,10 +95,10 @@ jobs:
 
           Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
 
-      - name: Build Whisper C++ Wrapper
+      - name: Build OpenVINO GenAI C++ Wrapper
         shell: pwsh
         run: |
-          Write-Host "Building Whisper C++ wrapper..."
+          Write-Host "Building OpenVINO GenAI C++ wrapper..."
           
           # Set up build directory
           $buildDir = "build/native/wrapper"
@@ -126,7 +126,7 @@ jobs:
           # Copy the wrapper DLL to the target directory
           Copy-Item "$buildDir/Release/openvino_genai_c.dll" -Destination $targetPath -Force
           
-          Write-Host "Whisper wrapper built and copied successfully"
+          Write-Host "OpenVINO GenAI wrapper built and copied successfully"
 
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln
@@ -202,3 +202,252 @@ jobs:
       - name: Run code analysis
         run: |
           dotnet build OpenVINO.NET.sln --configuration Release /p:EnableNETAnalyzers=true /p:AnalysisMode=AllEnabledByDefault
+
+  test-custom-dll:
+    name: Test Custom DLL Creation (x64)
+    runs-on: windows-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Cache OpenVINO Runtime
+        id: cache-openvino-dll
+        uses: actions/cache@v3
+        with:
+          path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
+          key: openvino-runtime-${{ env.OPENVINO_VERSION }}
+
+      - name: Download OpenVINO Runtime
+        if: steps.cache-openvino-dll.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Downloading OpenVINO GenAI Runtime $env:OPENVINO_VERSION for DLL testing..."
+          $outputPath = "build/native"
+          New-Item -ItemType Directory -Force -Path $outputPath
+          
+          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
+          $zipPath = "$outputPath/openvino_genai.zip"
+          
+          try {
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($url, $zipPath)
+            $webClient.Dispose()
+            
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $outputPath)
+            Remove-Item $zipPath
+            
+            Write-Host "✓ OpenVINO Runtime downloaded and extracted"
+          }
+          catch {
+            Write-Host "❌ Error downloading OpenVINO runtime: $_"
+            exit 1
+          }
+
+      - name: Build Custom DLL with Validation
+        shell: pwsh
+        run: |
+          Write-Host "🔨 Building and validating openvino_genai_c.dll..."
+          
+          # Set up build directory
+          $buildDir = "build/native/wrapper"
+          $openvinoPath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64"
+          $targetPath = "build/native/runtimes/win-x64/native"
+          
+          New-Item -ItemType Directory -Force -Path $buildDir
+          New-Item -ItemType Directory -Force -Path $targetPath
+          
+          # Set environment for CMake
+          $env:OPENVINO_GENAI_ROOT = $openvinoPath
+          
+          Write-Host "📋 CMake Configuration..."
+          cmake -S src/native -B $buildDir `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$openvinoPath" `
+            -DCMAKE_VERBOSE_MAKEFILE=ON
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ CMake configuration failed"
+            exit 1
+          }
+          
+          Write-Host "🏗️ Building wrapper..."
+          cmake --build $buildDir --config Release --verbose
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Build failed"
+            exit 1
+          }
+          
+          # Validate DLL creation
+          $dllPath = "$buildDir/Release/openvino_genai_c.dll"
+          if (-not (Test-Path $dllPath)) {
+            Write-Host "❌ DLL not found at expected location: $dllPath"
+            Write-Host "📂 Build directory contents:"
+            Get-ChildItem -Path $buildDir -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+          
+          # Check DLL properties
+          $dllInfo = Get-Item $dllPath
+          $dllSizeMB = [math]::Round($dllInfo.Length / 1MB, 2)
+          Write-Host "✓ DLL created successfully"
+          Write-Host "  📁 Location: $dllPath"
+          Write-Host "  📊 Size: $dllSizeMB MB"
+          Write-Host "  🕒 Modified: $($dllInfo.LastWriteTime)"
+          
+          # Validate DLL is not empty or corrupted
+          if ($dllInfo.Length -lt 1KB) {
+            Write-Host "❌ DLL appears to be too small ($(dllInfo.Length) bytes)"
+            exit 1
+          }
+          
+          # Copy to target directory
+          Copy-Item $dllPath -Destination $targetPath -Force
+          Write-Host "✓ DLL copied to runtime directory: $targetPath"
+
+      - name: Validate DLL Exports
+        shell: pwsh
+        run: |
+          Write-Host "🔍 Validating DLL exported functions..."
+          
+          $dllPath = "build/native/runtimes/win-x64/native/openvino_genai_c.dll"
+          
+          # Use dumpbin to check exports
+          $dumpbinOutput = & dumpbin /exports $dllPath 2>&1
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to analyze DLL exports"
+            Write-Host $dumpbinOutput
+            exit 1
+          }
+          
+          # Check for key function exports
+          $requiredFunctions = @(
+            "ov_genai_llm_pipeline_create",
+            "ov_genai_llm_pipeline_free", 
+            "ov_genai_whisper_pipeline_create",
+            "ov_genai_whisper_pipeline_free",
+            "ov_genai_whisper_generation_config_create",
+            "ov_genai_generation_config_create"
+          )
+          
+          $exportedFunctions = $dumpbinOutput -split "`n" | Where-Object { $_ -match "^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(\w+)" } | ForEach-Object {
+            if ($_ -match "^\s+\d+\s+[0-9A-F]+\s+[0-9A-F]+\s+(\w+)") {
+              $matches[1]
+            }
+          }
+          
+          Write-Host "📋 Exported functions found:"
+          $exportedFunctions | ForEach-Object { Write-Host "  • $_" }
+          
+          $missingFunctions = @()
+          foreach ($func in $requiredFunctions) {
+            if ($func -notin $exportedFunctions) {
+              $missingFunctions += $func
+            } else {
+              Write-Host "✓ Found required function: $func"
+            }
+          }
+          
+          if ($missingFunctions.Count -gt 0) {
+            Write-Host "❌ Missing required functions:"
+            $missingFunctions | ForEach-Object { Write-Host "  ❌ $_" }
+            exit 1
+          }
+          
+          Write-Host "✅ All required functions exported successfully"
+
+      - name: Test P/Invoke Integration
+        shell: pwsh
+        run: |
+          Write-Host "🧪 Testing basic P/Invoke integration..."
+          
+          # Create simple test program
+          $testProgram = @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class DllTest 
+{
+    private const string DllName = "openvino_genai_c";
+    
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    private static extern int ov_genai_llm_pipeline_create(IntPtr models_path, IntPtr device, UIntPtr property_args_size, out IntPtr pipe);
+    
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]  
+    private static extern void ov_genai_llm_pipeline_free(IntPtr pipe);
+    
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    private static extern int ov_genai_whisper_generation_config_create(out IntPtr config);
+    
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    private static extern void ov_genai_whisper_generation_config_free(IntPtr config);
+    
+    public static int Main()
+    {
+        try 
+        {
+            Console.WriteLine("Testing P/Invoke function loading...");
+            
+            // Test Whisper config functions (simpler, no model required)
+            var result = ov_genai_whisper_generation_config_create(out var config);
+            Console.WriteLine($"✓ ov_genai_whisper_generation_config_create returned: {result}");
+            
+            if (config != IntPtr.Zero)
+            {
+                ov_genai_whisper_generation_config_free(config);
+                Console.WriteLine("✓ ov_genai_whisper_generation_config_free called successfully");
+            }
+            
+            Console.WriteLine("✅ Basic P/Invoke integration test passed");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ P/Invoke test failed: {ex.Message}");
+            return 1;
+        }
+    }
+}
+"@
+          
+          # Write test program to file
+          $testProgram | Out-File -FilePath "DllTest.cs" -Encoding UTF8
+          
+          # Copy DLL to current directory for testing
+          Copy-Item "build/native/runtimes/win-x64/native/openvino_genai_c.dll" -Destination "." -Force
+          
+          # Compile and run test
+          Write-Host "🔨 Compiling test program..."
+          csc DllTest.cs
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Failed to compile test program"
+            exit 1
+          }
+          
+          Write-Host "🚀 Running P/Invoke test..."
+          ./DllTest.exe
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ P/Invoke test failed"
+            exit 1
+          }
+
+      - name: Upload Custom DLL Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: custom-dll-x64
+          path: |
+            build/native/runtimes/win-x64/native/openvino_genai_c.dll
+            build/native/wrapper/Release/openvino_genai_c.dll
+          retention-days: 7

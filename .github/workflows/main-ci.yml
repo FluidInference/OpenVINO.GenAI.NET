@@ -77,10 +77,10 @@ jobs:
 
           Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
 
-      - name: Build Whisper C++ Wrapper
+      - name: Build OpenVINO GenAI C++ Wrapper
         shell: pwsh
         run: |
-          Write-Host "Building Whisper C++ wrapper..."
+          Write-Host "Building OpenVINO GenAI C++ wrapper..."
           
           # Set up build directory
           $buildDir = "build/native/wrapper"
@@ -108,7 +108,7 @@ jobs:
           # Copy the wrapper DLL to the target directory
           Copy-Item "$buildDir/Release/openvino_genai_c.dll" -Destination $targetPath -Force
           
-          Write-Host "Whisper wrapper built and copied successfully"
+          Write-Host "OpenVINO GenAI wrapper built and copied successfully"
 
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln

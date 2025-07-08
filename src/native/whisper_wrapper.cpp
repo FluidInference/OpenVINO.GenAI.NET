@@ -1,6 +1,8 @@
 #include "whisper_wrapper.hpp"
 #include "openvino/genai/whisper_pipeline.hpp"
 #include "openvino/genai/whisper_generation_config.hpp"
+#include "openvino/genai/llm_pipeline.hpp"
+#include "openvino/genai/generation_config.hpp"
 #include <memory>
 #include <vector>
 #include <string>
@@ -33,6 +35,24 @@ struct WhisperResultWrapper {
 };
 
 struct WhisperPerfMetricsWrapper {
+    ov::genai::PerfMetrics metrics;
+};
+
+// LLM wrapper classes
+struct LLMPipelineWrapper {
+    std::unique_ptr<ov::genai::LLMPipeline> pipeline;
+};
+
+struct GenerationConfigWrapper {
+    std::unique_ptr<ov::genai::GenerationConfig> config;
+};
+
+struct DecodedResultsWrapper {
+    ov::genai::DecodedResults results;
+    std::string text_cache; // Cache string for C access
+};
+
+struct LLMPerfMetricsWrapper {
     ov::genai::PerfMetrics metrics;
 };
 
@@ -412,5 +432,380 @@ ov_status_e ov_genai_whisper_perf_metrics_get_features_extraction_duration(
 void ov_genai_whisper_perf_metrics_free(void* metrics) {
     if (metrics) {
         delete static_cast<WhisperPerfMetricsWrapper*>(metrics);
+    }
+}
+
+// ===================================================================
+// LLM Pipeline Functions
+// ===================================================================
+
+ov_status_e ov_genai_llm_pipeline_create(
+    const char* models_path,
+    const char* device,
+    size_t property_args_size,
+    void** pipe) {
+    
+    if (!models_path || !device || !pipe) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto wrapper = std::make_unique<LLMPipelineWrapper>();
+        wrapper->pipeline = std::make_unique<ov::genai::LLMPipeline>(
+            std::string(models_path), 
+            std::string(device));
+        *pipe = wrapper.release();
+    });
+}
+
+void ov_genai_llm_pipeline_free(void* pipe) {
+    if (pipe) {
+        delete static_cast<LLMPipelineWrapper*>(pipe);
+    }
+}
+
+ov_status_e ov_genai_llm_pipeline_generate(
+    void* pipe,
+    const char* input_text,
+    void* config,
+    void* streamer,
+    void** results) {
+    
+    if (!pipe || !input_text || !results) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<LLMPipelineWrapper*>(pipe);
+        
+        auto result_wrapper = std::make_unique<DecodedResultsWrapper>();
+        
+        if (config) {
+            auto* config_wrapper = static_cast<GenerationConfigWrapper*>(config);
+            result_wrapper->results = wrapper->pipeline->generate(
+                std::string(input_text), *config_wrapper->config);
+        } else {
+            result_wrapper->results = wrapper->pipeline->generate(std::string(input_text));
+        }
+        
+        *results = result_wrapper.release();
+    });
+}
+
+ov_status_e ov_genai_llm_pipeline_start_chat(void* pipe) {
+    if (!pipe) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<LLMPipelineWrapper*>(pipe);
+        wrapper->pipeline->start_chat();
+    });
+}
+
+ov_status_e ov_genai_llm_pipeline_finish_chat(void* pipe) {
+    if (!pipe) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<LLMPipelineWrapper*>(pipe);
+        wrapper->pipeline->finish_chat();
+    });
+}
+
+ov_status_e ov_genai_llm_pipeline_get_generation_config(
+    void* pipe,
+    void** config) {
+    
+    if (!pipe || !config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<LLMPipelineWrapper*>(pipe);
+        auto config_wrapper = std::make_unique<GenerationConfigWrapper>();
+        config_wrapper->config = std::make_unique<ov::genai::GenerationConfig>(
+            wrapper->pipeline->get_generation_config());
+        *config = config_wrapper.release();
+    });
+}
+
+ov_status_e ov_genai_llm_pipeline_set_generation_config(
+    void* pipe,
+    void* config) {
+    
+    if (!pipe || !config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<LLMPipelineWrapper*>(pipe);
+        auto* config_wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->pipeline->set_generation_config(*config_wrapper->config);
+    });
+}
+
+// ===================================================================
+// Generation Config Functions
+// ===================================================================
+
+ov_status_e ov_genai_generation_config_create(void** config) {
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto wrapper = std::make_unique<GenerationConfigWrapper>();
+        wrapper->config = std::make_unique<ov::genai::GenerationConfig>();
+        *config = wrapper.release();
+    });
+}
+
+ov_status_e ov_genai_generation_config_create_from_json(
+    const char* json_config,
+    void** config) {
+    
+    if (!json_config || !config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto wrapper = std::make_unique<GenerationConfigWrapper>();
+        // Note: Assuming there's a constructor or method to create from JSON
+        // This might need adjustment based on actual OpenVINO GenAI API
+        wrapper->config = std::make_unique<ov::genai::GenerationConfig>();
+        // TODO: Parse JSON and set config properties
+        *config = wrapper.release();
+    });
+}
+
+void ov_genai_generation_config_free(void* config) {
+    if (config) {
+        delete static_cast<GenerationConfigWrapper*>(config);
+    }
+}
+
+ov_status_e ov_genai_generation_config_set_max_new_tokens(
+    void* config, size_t max_new_tokens) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->max_new_tokens = max_new_tokens;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_max_length(
+    void* config, size_t max_length) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->max_length = max_length;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_temperature(
+    void* config, float temperature) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->temperature = temperature;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_top_p(
+    void* config, float top_p) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->top_p = top_p;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_top_k(
+    void* config, size_t top_k) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->top_k = top_k;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_do_sample(
+    void* config, bool do_sample) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->do_sample = do_sample;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_repetition_penalty(
+    void* config, float repetition_penalty) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->repetition_penalty = repetition_penalty;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_presence_penalty(
+    void* config, float presence_penalty) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->presence_penalty = presence_penalty;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_frequency_penalty(
+    void* config, float frequency_penalty) {
+    
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        wrapper->config->frequency_penalty = frequency_penalty;
+    });
+}
+
+ov_status_e ov_genai_generation_config_set_stop_strings(
+    void* config,
+    const char** stop_strings,
+    size_t stop_strings_size) {
+    
+    if (!config || !stop_strings) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        std::vector<std::string> stop_vec;
+        for (size_t i = 0; i < stop_strings_size; ++i) {
+            stop_vec.emplace_back(stop_strings[i]);
+        }
+        wrapper->config->stop_strings = stop_vec;
+    });
+}
+
+ov_status_e ov_genai_generation_config_get_max_new_tokens(
+    void* config, size_t* max_new_tokens) {
+    
+    if (!config || !max_new_tokens) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        *max_new_tokens = wrapper->config->max_new_tokens;
+    });
+}
+
+ov_status_e ov_genai_generation_config_validate(void* config) {
+    if (!config) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<GenerationConfigWrapper*>(config);
+        // Note: Assuming there's a validate method
+        // This might need adjustment based on actual OpenVINO GenAI API
+        // wrapper->config->validate();
+    });
+}
+
+// ===================================================================
+// Decoded Results Functions
+// ===================================================================
+
+ov_status_e ov_genai_decoded_results_create(void** results) {
+    if (!results) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto wrapper = std::make_unique<DecodedResultsWrapper>();
+        *results = wrapper.release();
+    });
+}
+
+void ov_genai_decoded_results_free(void* results) {
+    if (results) {
+        delete static_cast<DecodedResultsWrapper*>(results);
+    }
+}
+
+ov_status_e ov_genai_decoded_results_get_string(
+    void* results,
+    void* output,
+    size_t output_size) {
+    
+    if (!results || !output) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<DecodedResultsWrapper*>(results);
+        const std::string& text = wrapper->results.text;
+        
+        size_t copy_size = std::min(output_size - 1, text.size());
+        std::memcpy(output, text.c_str(), copy_size);
+        static_cast<char*>(output)[copy_size] = '\0';
+    });
+}
+
+ov_status_e ov_genai_decoded_results_get_perf_metrics(
+    void* results,
+    void** metrics) {
+    
+    if (!results || !metrics) {
+        return OV_STATUS_INVALID_C_PARAM;
+    }
+
+    WHISPER_WRAPPER_TRY_CATCH({
+        auto* wrapper = static_cast<DecodedResultsWrapper*>(results);
+        auto metrics_wrapper = std::make_unique<LLMPerfMetricsWrapper>();
+        metrics_wrapper->metrics = wrapper->results.perf_metrics;
+        *metrics = metrics_wrapper.release();
+    });
+}
+
+void ov_genai_decoded_results_perf_metrics_free(void* metrics) {
+    if (metrics) {
+        delete static_cast<LLMPerfMetricsWrapper*>(metrics);
     }
 }
