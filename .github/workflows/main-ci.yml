@@ -90,11 +90,17 @@ jobs:
           $openvinoPath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64"
           $targetPath = "build/native/runtimes/win-x64/native"
           
-          # Configure CMake
+          # Debug: List directory structure
+          Write-Host "OpenVINO directory structure:"
+          Get-ChildItem -Path $openvinoPath -Recurse -Name | Where-Object { $_ -like "*cmake*" -or $_ -like "*Config*" } | Sort-Object
+          
+          # Set environment variable for CMake
+          $env:OPENVINO_GENAI_ROOT = $openvinoPath
+          
+          # Configure CMake with simplified paths
           cmake -S src/native -B $buildDir `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_PREFIX_PATH="$openvinoPath" `
-            -DOpenVINOGenAI_DIR="$openvinoPath/cmake"
+            -DCMAKE_PREFIX_PATH="$openvinoPath"
           
           # Build the wrapper
           cmake --build $buildDir --config Release
