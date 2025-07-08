@@ -1,5 +1,4 @@
 using Xunit;
-using Xunit.SkippableFact;
 using OpenVINO.NET.GenAI;
 using System.Diagnostics;
 
@@ -16,9 +15,9 @@ public class WhisperIntegrationTests : IDisposable
     public WhisperIntegrationTests()
     {
         // Check for environment variable (used in CI) or default location
-        _modelPath = Environment.GetEnvironmentVariable("WHISPERDEMO_MODEL_PATH") 
+        _modelPath = Environment.GetEnvironmentVariable("WHISPERDEMO_MODEL_PATH")
                      ?? Path.Combine("Models", "whisper-tiny.en");
-        
+
         _skipTests = !Directory.Exists(_modelPath) || !Directory.GetFiles(_modelPath, "*.xml").Any();
     }
 
@@ -39,7 +38,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public void WhisperPipeline_Constructor_WithValidParameters_ShouldSucceed()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         Assert.NotNull(pipeline);
@@ -48,7 +47,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public void WhisperPipeline_Constructor_WithInvalidModelPath_ShouldThrow()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         Assert.Throws<ArgumentException>(() => new WhisperPipeline("", "CPU"));
         Assert.Throws<ArgumentException>(() => new WhisperPipeline(_modelPath!, ""));
@@ -57,7 +56,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public void WhisperPipeline_Generate_WithBasicConfig_ShouldReturnResult()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish();
@@ -69,7 +68,7 @@ public class WhisperIntegrationTests : IDisposable
         Assert.NotNull(result.Text);
         Assert.True(result.Texts.Length > 0);
         Assert.NotNull(result.PerformanceMetrics);
-        
+
         result.Dispose();
         config.Dispose();
     }
@@ -77,7 +76,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public async Task WhisperPipeline_GenerateAsync_WithBasicConfig_ShouldReturnResult()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish();
@@ -88,7 +87,7 @@ public class WhisperIntegrationTests : IDisposable
         Assert.NotNull(result);
         Assert.NotNull(result.Text);
         Assert.True(result.Texts.Length > 0);
-        
+
         result.Dispose();
         config.Dispose();
     }
@@ -96,7 +95,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public void WhisperPipeline_Generate_WithTimestamps_ShouldReturnChunks()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish().WithTimestamps(true);
@@ -106,7 +105,7 @@ public class WhisperIntegrationTests : IDisposable
 
         Assert.NotNull(result);
         Assert.NotNull(result.Text);
-        
+
         result.Dispose();
         config.Dispose();
     }
@@ -114,7 +113,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public void WhisperPipeline_Generate_WithInitialPrompt_ShouldReturnResult()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default
@@ -126,7 +125,7 @@ public class WhisperIntegrationTests : IDisposable
 
         Assert.NotNull(result);
         Assert.NotNull(result.Text);
-        
+
         result.Dispose();
         config.Dispose();
     }
@@ -134,7 +133,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public async Task WhisperPipeline_GenerateStreamAsync_ShouldReturnChunks()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish().WithTimestamps(true);
@@ -156,7 +155,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public async Task WhisperPipeline_GenerateStreamAsync_WithCancellation_ShouldCancel()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish();
@@ -166,7 +165,7 @@ public class WhisperIntegrationTests : IDisposable
         cts.CancelAfter(100); // Cancel after 100ms
 
         var chunks = new List<WhisperChunk>();
-        
+
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
             await foreach (var chunk in pipeline.GenerateStreamAsync(audioData, config, cts.Token))
@@ -181,7 +180,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public void WhisperPipeline_SetAndGetGenerationConfig_ShouldWork()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish();
@@ -190,7 +189,7 @@ public class WhisperIntegrationTests : IDisposable
         var retrievedConfig = pipeline.GetGenerationConfig();
 
         Assert.NotNull(retrievedConfig);
-        
+
         retrievedConfig.Dispose();
         config.Dispose();
     }
@@ -198,35 +197,35 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public void WhisperPipeline_Generate_WithEmptyAudio_ShouldThrow()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish();
         var emptyAudio = Array.Empty<float>();
 
         Assert.Throws<ArgumentException>(() => pipeline.Generate(emptyAudio, config));
-        
+
         config.Dispose();
     }
 
     [SkippableFact]
     public void WhisperPipeline_Generate_WithInvalidAudio_ShouldThrow()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish();
         var invalidAudio = new float[] { float.NaN, float.PositiveInfinity, 0.5f };
 
         Assert.Throws<ArgumentException>(() => pipeline.Generate(invalidAudio, config));
-        
+
         config.Dispose();
     }
 
     [SkippableFact]
     public void WhisperPipeline_Generate_WithTooLongAudio_ShouldThrow()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish();
@@ -234,7 +233,7 @@ public class WhisperIntegrationTests : IDisposable
         var tooLongAudio = GenerateTestAudio(31);
 
         Assert.Throws<ArgumentException>(() => pipeline.Generate(tooLongAudio, config));
-        
+
         config.Dispose();
     }
 
@@ -244,7 +243,7 @@ public class WhisperIntegrationTests : IDisposable
     [InlineData("NPU")]
     public void WhisperPipeline_BenchmarkDevices_ShouldMeasurePerformance(string device)
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         try
         {
@@ -272,14 +271,14 @@ public class WhisperIntegrationTests : IDisposable
         catch (Exception ex) when (device != "CPU")
         {
             // Skip test for non-CPU devices if they're not available
-            Skip.If(true, $"{device} device not available: {ex.Message}");
+            Skip.IfNot(false, $"{device} device not available: {ex.Message}");
         }
     }
 
     [SkippableFact]
     public void WhisperResult_Properties_ShouldBeAccessible()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         using var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         var config = WhisperConfig.Default.ForTranscriptionEnglish().WithTimestamps(true);
@@ -291,7 +290,7 @@ public class WhisperIntegrationTests : IDisposable
         Assert.NotNull(result.Texts);
         Assert.NotNull(result.Scores);
         Assert.NotNull(result.PerformanceMetrics);
-        
+
         // Test performance metrics
         var metrics = result.PerformanceMetrics;
         var (mean, stdDev) = metrics.FeaturesExtractionDuration;
@@ -306,7 +305,7 @@ public class WhisperIntegrationTests : IDisposable
     [SkippableFact]
     public void WhisperPipeline_DisposedAccess_ShouldThrow()
     {
-        Skip.If(_skipTests, "Whisper model not available");
+        Skip.IfNot(!_skipTests, "Whisper model not available");
 
         var pipeline = new WhisperPipeline(_modelPath!, "CPU");
         pipeline.Dispose();

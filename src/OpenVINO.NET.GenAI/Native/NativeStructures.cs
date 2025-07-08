@@ -74,7 +74,7 @@ public struct whisper_result_chunk
 {
     public float start_ts;
     public float end_ts;
-    [MarshalAs(UnmanagedType.LPStr)] 
+    [MarshalAs(UnmanagedType.LPStr)]
     public string text;
 }
 

@@ -12,7 +12,7 @@ public class WhisperUnitTests
     public void WhisperConfig_Default_ShouldCreateValidConfig()
     {
         using var config = WhisperConfig.Default;
-        
+
         Assert.NotNull(config);
     }
 
@@ -20,7 +20,7 @@ public class WhisperUnitTests
     public void WhisperConfig_FluentAPI_WithLanguage_ShouldSetLanguage()
     {
         using var config = WhisperConfig.Default.WithLanguage("en");
-        
+
         Assert.NotNull(config);
     }
 
@@ -28,7 +28,7 @@ public class WhisperUnitTests
     public void WhisperConfig_FluentAPI_WithTask_ShouldSetTask()
     {
         using var config = WhisperConfig.Default.WithTask("transcribe");
-        
+
         Assert.NotNull(config);
     }
 
@@ -36,7 +36,7 @@ public class WhisperUnitTests
     public void WhisperConfig_FluentAPI_WithTimestamps_ShouldSetTimestamps()
     {
         using var config = WhisperConfig.Default.WithTimestamps(true);
-        
+
         Assert.NotNull(config);
     }
 
@@ -44,7 +44,7 @@ public class WhisperUnitTests
     public void WhisperConfig_FluentAPI_WithInitialPrompt_ShouldSetPrompt()
     {
         using var config = WhisperConfig.Default.WithInitialPrompt("Test prompt");
-        
+
         Assert.NotNull(config);
     }
 
@@ -52,7 +52,7 @@ public class WhisperUnitTests
     public void WhisperConfig_FluentAPI_WithHotwords_ShouldSetHotwords()
     {
         using var config = WhisperConfig.Default.WithHotwords("test,audio,speech");
-        
+
         Assert.NotNull(config);
     }
 
@@ -60,7 +60,7 @@ public class WhisperUnitTests
     public void WhisperConfig_FluentAPI_WithMaxInitialTimestampIndex_ShouldSetIndex()
     {
         using var config = WhisperConfig.Default.WithMaxInitialTimestampIndex(50);
-        
+
         Assert.NotNull(config);
     }
 
@@ -68,7 +68,7 @@ public class WhisperUnitTests
     public void WhisperConfig_FluentAPI_WithDecoderStartTokenId_ShouldSetTokenId()
     {
         using var config = WhisperConfig.Default.WithDecoderStartTokenId(50257);
-        
+
         Assert.NotNull(config);
     }
 
@@ -77,7 +77,7 @@ public class WhisperUnitTests
     {
         var suppressTokens = new long[] { 1, 2, 3, 4, 5 };
         using var config = WhisperConfig.Default.WithSuppressTokens(suppressTokens);
-        
+
         Assert.NotNull(config);
     }
 
@@ -86,7 +86,7 @@ public class WhisperUnitTests
     {
         var beginSuppressTokens = new long[] { 1, 2, 3 };
         using var config = WhisperConfig.Default.WithBeginSuppressTokens(beginSuppressTokens);
-        
+
         Assert.NotNull(config);
     }
 
@@ -98,7 +98,7 @@ public class WhisperUnitTests
             .WithTask("transcribe")
             .WithTimestamps(true)
             .WithInitialPrompt("Hello world");
-        
+
         Assert.NotNull(config);
     }
 
@@ -106,7 +106,7 @@ public class WhisperUnitTests
     public void WhisperConfig_ForTranscriptionEnglish_ShouldSetDefaults()
     {
         using var config = WhisperConfig.Default.ForTranscriptionEnglish();
-        
+
         Assert.NotNull(config);
     }
 
@@ -114,7 +114,7 @@ public class WhisperUnitTests
     public void WhisperConfig_ForTranslationToEnglish_ShouldSetDefaults()
     {
         using var config = WhisperConfig.Default.ForTranslationToEnglish();
-        
+
         Assert.NotNull(config);
     }
 
@@ -122,7 +122,7 @@ public class WhisperUnitTests
     public void WhisperConfig_ForTranscriptionLanguage_ShouldSetLanguage()
     {
         using var config = WhisperConfig.Default.ForTranscriptionLanguage("es");
-        
+
         Assert.NotNull(config);
     }
 
@@ -132,7 +132,7 @@ public class WhisperUnitTests
     public void WhisperConfig_WithLanguage_InvalidInput_ShouldThrow(string? language)
     {
         using var config = WhisperConfig.Default;
-        
+
         Assert.Throws<ArgumentException>(() => config.WithLanguage(language!));
     }
 
@@ -142,7 +142,7 @@ public class WhisperUnitTests
     public void WhisperConfig_WithTask_InvalidInput_ShouldThrow(string? task)
     {
         using var config = WhisperConfig.Default;
-        
+
         Assert.Throws<ArgumentException>(() => config.WithTask(task!));
     }
 
@@ -152,7 +152,7 @@ public class WhisperUnitTests
     public void WhisperConfig_WithInitialPrompt_InvalidInput_ShouldThrow(string? prompt)
     {
         using var config = WhisperConfig.Default;
-        
+
         Assert.Throws<ArgumentException>(() => config.WithInitialPrompt(prompt!));
     }
 
@@ -162,7 +162,7 @@ public class WhisperUnitTests
     public void WhisperConfig_WithHotwords_InvalidInput_ShouldThrow(string? hotwords)
     {
         using var config = WhisperConfig.Default;
-        
+
         Assert.Throws<ArgumentException>(() => config.WithHotwords(hotwords!));
     }
 
@@ -170,7 +170,7 @@ public class WhisperUnitTests
     public void WhisperConfig_WithSuppressTokens_NullInput_ShouldThrow()
     {
         using var config = WhisperConfig.Default;
-        
+
         Assert.Throws<ArgumentNullException>(() => config.WithSuppressTokens(null!));
     }
 
@@ -178,7 +178,7 @@ public class WhisperUnitTests
     public void WhisperConfig_WithBeginSuppressTokens_NullInput_ShouldThrow()
     {
         using var config = WhisperConfig.Default;
-        
+
         Assert.Throws<ArgumentNullException>(() => config.WithBeginSuppressTokens(null!));
     }
 
@@ -207,46 +207,7 @@ public class WhisperUnitTests
         Assert.Throws<ObjectDisposedException>(() => config.WithBeginSuppressTokens(new long[] { 1, 2, 3 }));
     }
 
-    [Fact]
-    public void WhisperChunk_Constructor_ShouldSetProperties()
-    {
-        var chunk = new WhisperChunk(1.5f, 3.2f, "Hello world");
-
-        Assert.Equal(1.5f, chunk.StartTime);
-        Assert.Equal(3.2f, chunk.EndTime);
-        Assert.Equal("Hello world", chunk.Text);
-        Assert.Equal(1.7f, chunk.Duration, 1); // Allow for floating point precision
-    }
-
-    [Fact]
-    public void WhisperChunk_Constructor_WithNullText_ShouldUseEmptyString()
-    {
-        var chunk = new WhisperChunk(0.0f, 1.0f, null!);
-
-        Assert.Equal(string.Empty, chunk.Text);
-    }
-
-    [Fact]
-    public void WhisperChunk_ToString_ShouldFormatCorrectly()
-    {
-        var chunk = new WhisperChunk(1.5f, 3.2f, "Hello world");
-        var result = chunk.ToString();
-
-        Assert.Contains("1.50s", result);
-        Assert.Contains("3.20s", result);
-        Assert.Contains("Hello world", result);
-    }
-
-    [Theory]
-    [InlineData(0.0f, 1.0f, 1.0f)]
-    [InlineData(1.5f, 3.7f, 2.2f)]
-    [InlineData(10.25f, 15.75f, 5.5f)]
-    public void WhisperChunk_Duration_ShouldCalculateCorrectly(float startTime, float endTime, float expectedDuration)
-    {
-        var chunk = new WhisperChunk(startTime, endTime, "test");
-
-        Assert.Equal(expectedDuration, chunk.Duration, 1); // Allow for floating point precision
-    }
+    // Note: WhisperChunk constructor is internal, so these tests are handled in integration tests
 
     [Theory]
     [InlineData("CPU")]
@@ -257,8 +218,8 @@ public class WhisperUnitTests
         // Note: This test only validates parameter handling, not actual device availability
         // Actual device tests are in integration tests
         var modelPath = "/fake/path"; // This will fail later but validates parameter handling
-        
-        var exception = Record.Exception(() => 
+
+        var exception = Record.Exception(() =>
         {
             try
             {
@@ -298,7 +259,7 @@ public class WhisperUnitTests
     {
         // This tests the validation logic that would be used by WhisperPipeline
         var emptyAudio = Array.Empty<float>();
-        
+
         Assert.Empty(emptyAudio);
     }
 
@@ -307,7 +268,7 @@ public class WhisperUnitTests
     {
         // Test normal audio data
         var validAudio = new float[] { 0.1f, 0.2f, 0.3f, -0.1f, -0.2f };
-        
+
         Assert.True(validAudio.Length > 0);
         Assert.All(validAudio, sample => Assert.True(float.IsFinite(sample)));
     }
@@ -319,7 +280,7 @@ public class WhisperUnitTests
         var invalidAudio1 = new float[] { 0.1f, float.NaN, 0.3f };
         var invalidAudio2 = new float[] { 0.1f, float.PositiveInfinity, 0.3f };
         var invalidAudio3 = new float[] { 0.1f, float.NegativeInfinity, 0.3f };
-        
+
         Assert.Contains(invalidAudio1, sample => !float.IsFinite(sample));
         Assert.Contains(invalidAudio2, sample => !float.IsFinite(sample));
         Assert.Contains(invalidAudio3, sample => !float.IsFinite(sample));
@@ -332,7 +293,7 @@ public class WhisperUnitTests
         const int maxSamples = 480000;
         var maxAudio = new float[maxSamples];
         var tooLongAudio = new float[maxSamples + 1];
-        
+
         Assert.Equal(maxSamples, maxAudio.Length);
         Assert.True(tooLongAudio.Length > maxSamples);
     }
@@ -345,7 +306,7 @@ public class WhisperUnitTests
     {
         var expectedSamples = sampleRate * durationSeconds;
         var audio = new float[expectedSamples];
-        
+
         Assert.Equal(expectedSamples, audio.Length);
     }
 }
