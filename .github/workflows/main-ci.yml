@@ -153,14 +153,14 @@ jobs:
           dotnet run --project samples/QuickDemo --configuration Release -- --benchmark
 
       - name: Upload test results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results
           path: TestResults/
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: |
@@ -205,7 +205,7 @@ jobs:
           dotnet pack src/OpenVINO.NET.Native/OpenVINO.NET.Native.csproj --configuration Release --output ./nuget
 
       - name: Upload NuGet packages
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nuget-packages
           path: nuget/*.nupkg
