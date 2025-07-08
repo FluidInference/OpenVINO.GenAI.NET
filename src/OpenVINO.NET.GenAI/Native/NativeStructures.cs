@@ -63,3 +63,40 @@ public struct streamer_callback
     public IntPtr callback_func;
     public IntPtr args;
 }
+
+#region Whisper-specific structures and enums
+
+/// <summary>
+/// Whisper transcription result chunk
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct whisper_result_chunk
+{
+    public float start_ts;
+    public float end_ts;
+    [MarshalAs(UnmanagedType.LPStr)] 
+    public string text;
+}
+
+/// <summary>
+/// Whisper callback function delegate for streaming transcription
+/// </summary>
+/// <param name="chunk">Transcription chunk</param>
+/// <param name="args">User-defined arguments</param>
+/// <returns>Streaming status</returns>
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate ov_genai_streamming_status_e WhisperStreamingCallbackFunc(
+    whisper_result_chunk chunk,
+    IntPtr args);
+
+/// <summary>
+/// Whisper streaming callback structure
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct whisper_streaming_callback
+{
+    public IntPtr callback_func;
+    public IntPtr args;
+}
+
+#endregion
