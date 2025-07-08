@@ -127,12 +127,12 @@ class Program
         {
             Console.WriteLine($"Fatal error: {ex.Message}");
             Console.WriteLine($"Type: {ex.GetType().Name}");
-            
+
             if (ex.InnerException != null)
             {
                 Console.WriteLine($"Inner Exception: {ex.InnerException.Message}");
             }
-            
+
             Environment.Exit(1);
         }
     }

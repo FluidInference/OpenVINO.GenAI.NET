@@ -65,10 +65,10 @@ public sealed class GenerationResult : IDisposable
         // First call to get the required buffer size
         nuint bufferSize = 0;
         var status = GenAINativeMethods.ov_genai_decoded_results_get_string(
-            _handle.DangerousGetHandle(), 
-            IntPtr.Zero, 
+            _handle.DangerousGetHandle(),
+            IntPtr.Zero,
             ref bufferSize);
-        
+
         OpenVINOGenAIException.ThrowIfError(status, "get string size");
 
         if (bufferSize == 0)
@@ -81,10 +81,10 @@ public sealed class GenerationResult : IDisposable
         try
         {
             status = GenAINativeMethods.ov_genai_decoded_results_get_string(
-                _handle.DangerousGetHandle(), 
-                buffer, 
+                _handle.DangerousGetHandle(),
+                buffer,
                 ref bufferSize);
-            
+
             OpenVINOGenAIException.ThrowIfError(status, "get string");
 
             return Marshal.PtrToStringAnsi(buffer) ?? string.Empty;
@@ -104,9 +104,9 @@ public sealed class GenerationResult : IDisposable
         ThrowIfDisposed();
 
         var status = GenAINativeMethods.ov_genai_decoded_results_get_perf_metrics(
-            _handle.DangerousGetHandle(), 
+            _handle.DangerousGetHandle(),
             out var metricsHandle);
-        
+
         OpenVINOGenAIException.ThrowIfError(status, "get performance metrics");
 
         return new PerformanceMetrics(new PerformanceMetricsSafeHandle(metricsHandle, true));

@@ -30,7 +30,7 @@ public sealed class GenerationConfig : IDisposable
     {
         if (string.IsNullOrEmpty(jsonPath))
             throw new ArgumentException("JSON path cannot be null or empty", nameof(jsonPath));
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_create_from_json(jsonPath, out var handle);
         OpenVINOGenAIException.ThrowIfError(status, "create generation config from JSON");
         _handle = new GenerationConfigSafeHandle(handle, true);
@@ -65,7 +65,7 @@ public sealed class GenerationConfig : IDisposable
         ThrowIfDisposed();
         if (maxNewTokens < 0)
             throw new ArgumentOutOfRangeException(nameof(maxNewTokens), "Max new tokens cannot be negative");
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_max_new_tokens(_handle.DangerousGetHandle(), (nuint)maxNewTokens);
         OpenVINOGenAIException.ThrowIfError(status, "set max new tokens");
         return this;
@@ -81,7 +81,7 @@ public sealed class GenerationConfig : IDisposable
         ThrowIfDisposed();
         if (maxLength < 0)
             throw new ArgumentOutOfRangeException(nameof(maxLength), "Max length cannot be negative");
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_max_length(_handle.DangerousGetHandle(), (nuint)maxLength);
         OpenVINOGenAIException.ThrowIfError(status, "set max length");
         return this;
@@ -97,7 +97,7 @@ public sealed class GenerationConfig : IDisposable
         ThrowIfDisposed();
         if (temperature < 0)
             throw new ArgumentOutOfRangeException(nameof(temperature), "Temperature cannot be negative");
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_temperature(_handle.DangerousGetHandle(), temperature);
         OpenVINOGenAIException.ThrowIfError(status, "set temperature");
         return this;
@@ -113,7 +113,7 @@ public sealed class GenerationConfig : IDisposable
         ThrowIfDisposed();
         if (topP < 0.0f || topP > 1.0f)
             throw new ArgumentOutOfRangeException(nameof(topP), "Top-P must be between 0.0 and 1.0");
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_top_p(_handle.DangerousGetHandle(), topP);
         OpenVINOGenAIException.ThrowIfError(status, "set top_p");
         return this;
@@ -129,7 +129,7 @@ public sealed class GenerationConfig : IDisposable
         ThrowIfDisposed();
         if (topK < 0)
             throw new ArgumentOutOfRangeException(nameof(topK), "Top-K cannot be negative");
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_top_k(_handle.DangerousGetHandle(), (nuint)topK);
         OpenVINOGenAIException.ThrowIfError(status, "set top_k");
         return this;
@@ -143,7 +143,7 @@ public sealed class GenerationConfig : IDisposable
     public GenerationConfig WithSampling(bool doSample)
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_do_sample(_handle.DangerousGetHandle(), doSample);
         OpenVINOGenAIException.ThrowIfError(status, "set do_sample");
         return this;
@@ -159,7 +159,7 @@ public sealed class GenerationConfig : IDisposable
         ThrowIfDisposed();
         if (repetitionPenalty < 0)
             throw new ArgumentOutOfRangeException(nameof(repetitionPenalty), "Repetition penalty cannot be negative");
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_repetition_penalty(_handle.DangerousGetHandle(), repetitionPenalty);
         OpenVINOGenAIException.ThrowIfError(status, "set repetition penalty");
         return this;
@@ -173,7 +173,7 @@ public sealed class GenerationConfig : IDisposable
     public GenerationConfig WithPresencePenalty(float presencePenalty)
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_presence_penalty(_handle.DangerousGetHandle(), presencePenalty);
         OpenVINOGenAIException.ThrowIfError(status, "set presence penalty");
         return this;
@@ -187,7 +187,7 @@ public sealed class GenerationConfig : IDisposable
     public GenerationConfig WithFrequencyPenalty(float frequencyPenalty)
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_frequency_penalty(_handle.DangerousGetHandle(), frequencyPenalty);
         OpenVINOGenAIException.ThrowIfError(status, "set frequency penalty");
         return this;
@@ -202,10 +202,10 @@ public sealed class GenerationConfig : IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(stopStrings);
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_set_stop_strings(
-            _handle.DangerousGetHandle(), 
-            stopStrings, 
+            _handle.DangerousGetHandle(),
+            stopStrings,
             (nuint)stopStrings.Length);
         OpenVINOGenAIException.ThrowIfError(status, "set stop strings");
         return this;
@@ -218,7 +218,7 @@ public sealed class GenerationConfig : IDisposable
     public int GetMaxNewTokens()
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_get_max_new_tokens(_handle.DangerousGetHandle(), out var maxNewTokens);
         OpenVINOGenAIException.ThrowIfError(status, "get max new tokens");
         return (int)maxNewTokens;
@@ -230,7 +230,7 @@ public sealed class GenerationConfig : IDisposable
     public void Validate()
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_validate(_handle.DangerousGetHandle());
         OpenVINOGenAIException.ThrowIfError(status, "validate configuration");
     }

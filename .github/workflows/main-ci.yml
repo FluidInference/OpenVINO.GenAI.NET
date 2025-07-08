@@ -1,0 +1,216 @@
+name: Main CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_inference_test:
+        description: "Skip inference tests"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  OPENVINO_VERSION: "2025.2.0.0rc4"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-test-inference:
+    name: Build, Test & Inference
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Cache OpenVINO Runtime
+        id: cache-openvino
+        uses: actions/cache@v3
+        with:
+          path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
+          key: openvino-runtime-${{ env.OPENVINO_VERSION }}
+
+      - name: Download OpenVINO Runtime
+        if: steps.cache-openvino.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Downloading OpenVINO GenAI Runtime $env:OPENVINO_VERSION..."
+          $outputPath = "build/native"
+          New-Item -ItemType Directory -Force -Path $outputPath
+
+          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/pre-release/${env:OPENVINO_VERSION}/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
+          $zipPath = "$outputPath/openvino_genai.zip"
+
+          Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+          Expand-Archive -Path $zipPath -DestinationPath $outputPath -Force
+          Remove-Item $zipPath
+
+          Write-Host "OpenVINO Runtime downloaded successfully"
+
+      - name: Setup OpenVINO DLLs
+        shell: pwsh
+        run: |
+          $runtimePath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64/runtime"
+          $targetPath = "build/native/runtimes/win-x64/native"
+
+          New-Item -ItemType Directory -Force -Path $targetPath
+
+          # Copy Release DLLs
+          Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
+          Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
+
+          Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
+
+      - name: Restore dependencies
+        run: dotnet restore OpenVINO.NET.sln
+
+      - name: Build solution
+        run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore
+        env:
+          CI: true
+
+      - name: Run unit tests
+        run: |
+          dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj `
+            --configuration Release `
+            --no-build `
+            --verbosity normal `
+            --logger "trx;LogFileName=unit-test-results.trx" `
+            --collect:"XPlat Code Coverage" `
+            --results-directory ./TestResults
+
+      - name: Cache test model
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: Models/qwen3-0.6b-int4-ov
+          key: model-qwen3-0.6b-int4-ov-v1
+
+      - name: Download INT4 model for testing
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        shell: pwsh
+        run: |
+          $modelPath = "Models/qwen3-0.6b-int4-ov"
+          if (-not (Test-Path "$modelPath/openvino_model.xml")) {
+            Write-Host "Downloading INT4 quantized model for inference testing..."
+            New-Item -ItemType Directory -Force -Path $modelPath
+            
+            $files = @(
+              "config.json",
+              "generation_config.json",
+              "openvino_detokenizer.bin",
+              "openvino_detokenizer.xml",
+              "openvino_model.bin",
+              "openvino_model.xml",
+              "openvino_tokenizer.bin",
+              "openvino_tokenizer.xml",
+              "tokenizer_config.json",
+              "special_tokens_map.json"
+            )
+            
+            foreach ($file in $files) {
+              $url = "https://huggingface.co/bweng/qwen3-0.6b-int4-ov-npu/resolve/main/$file"
+              $outputFile = "$modelPath/$file"
+              Write-Host "Downloading $file..."
+              Invoke-WebRequest -Uri $url -OutFile $outputFile -UseBasicParsing
+            }
+            
+            Write-Host "Model download completed"
+          }
+          else {
+            Write-Host "Model already exists in cache"
+          }
+
+      - name: Run QuickDemo inference test
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        shell: pwsh
+        run: |
+          Write-Host "Running QuickDemo with INT4 model on CPU..."
+
+          # Set model path environment variable
+          $env:QUICKDEMO_MODEL_PATH = "Models/qwen3-0.6b-int4-ov"
+
+          # Run demo with CPU device
+          dotnet run --project samples/QuickDemo --configuration Release -- --device CPU
+
+          Write-Host "`nRunning benchmark mode..."
+          dotnet run --project samples/QuickDemo --configuration Release -- --benchmark
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results
+          path: TestResults/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            src/OpenVINO.NET.Core/bin/Release/
+            src/OpenVINO.NET.GenAI/bin/Release/
+            src/OpenVINO.NET.Native/bin/Release/
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: TestResults/*.trx
+          reporter: dotnet-trx
+          fail-on-error: true
+
+  publish-nuget:
+    name: Publish NuGet Packages
+    needs: build-test-inference
+    runs-on: windows-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: artifacts/
+
+      - name: Pack NuGet packages
+        run: |
+          dotnet pack src/OpenVINO.NET.Core/OpenVINO.NET.Core.csproj --configuration Release --output ./nuget
+          dotnet pack src/OpenVINO.NET.GenAI/OpenVINO.NET.GenAI.csproj --configuration Release --output ./nuget
+          dotnet pack src/OpenVINO.NET.Native/OpenVINO.NET.Native.csproj --configuration Release --output ./nuget
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: nuget-packages
+          path: nuget/*.nupkg
+
+    # Uncomment when ready to publish to NuGet.org
+    # - name: Publish to NuGet
+    #   run: |
+    #     dotnet nuget push ./nuget/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

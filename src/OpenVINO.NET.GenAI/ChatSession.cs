@@ -40,8 +40,8 @@ public sealed class ChatSession : IDisposable
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The response from the model</returns>
     public async Task<GenerationResult> SendMessageAsync(
-        string message, 
-        GenerationConfig? config = null, 
+        string message,
+        GenerationConfig? config = null,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();

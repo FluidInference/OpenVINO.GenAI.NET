@@ -6,7 +6,7 @@
 Create a comprehensive C# wrapper for OpenVINO and OpenVINO GenAI C code to make it more usable directly in C# applications, compared to basic P/Invoke examples.
 
 ### Core Requirements
-- **Target Platform**: Windows x64, .NET 6.0+
+- **Target Platform**: Windows x64, .NET 9.0+
 - **OpenVINO Version**: OpenVINO GenAI 2025.2.0.0-rc4 (required for needed C API changes)
 - **Modern C# Patterns**: Async/await, IAsyncEnumerable, SafeHandle resource management
 - **Simple Demo**: CLI with hardcoded values, device selection, and benchmark mode
@@ -71,13 +71,10 @@ dotnet run --project samples/QuickDemo -- --benchmark
 
 ## Common Issues and Solutions
 
-### .NET 6 Compatibility
-- **Issue**: `ArgumentException.ThrowIfNullOrEmpty` not available
-- **Solution**: Use traditional null checks:
-```csharp
-if (string.IsNullOrEmpty(value))
-    throw new ArgumentException("Value cannot be null or empty", nameof(value));
-```
+### .NET 9 Features
+- **Modern C# Features**: Takes advantage of latest language features and performance improvements
+- **Enhanced Performance**: Benefits from .NET 9 runtime optimizations for better inference speed
+- **Native AOT Ready**: Can be compiled to native code for faster startup times
 
 ### Native Library Path
 - **Issue**: MSBuild targets path warnings on non-Windows
@@ -94,3 +91,6 @@ if (string.IsNullOrEmpty(value))
 - **Focus**: Device selection and benchmark comparisons
 - **Avoid**: Overly complex CLI interfaces
 - **Emphasize**: "Just works" experience with automatic model download
+
+## Project Configuration and Environment Notes
+- Remember the important configuration, environment and test changes

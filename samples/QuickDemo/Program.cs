@@ -79,8 +79,16 @@ class Program
 
     static async Task<string> EnsureModelDownloadedAsync()
     {
+        // Check for environment variable override (used in CI)
+        var envModelPath = Environment.GetEnvironmentVariable("QUICKDEMO_MODEL_PATH");
+        if (!string.IsNullOrEmpty(envModelPath) && Directory.Exists(envModelPath))
+        {
+            Console.WriteLine($"✓ Using model from environment variable: {envModelPath}");
+            return envModelPath;
+        }
+
         var modelPath = Path.Combine(ModelsDirectory, ModelId.Split('/')[1]);
-        
+
         if (Directory.Exists(modelPath) && Directory.GetFiles(modelPath, "*.xml").Length > 0)
         {
             Console.WriteLine($"✓ Model found at: {modelPath}");
@@ -92,7 +100,7 @@ class Program
         Console.WriteLine();
 
         await DownloadModelAsync(ModelId, modelPath);
-        
+
         Console.WriteLine("✓ Model download completed!");
         Console.WriteLine();
         return modelPath;
@@ -110,7 +118,7 @@ class Program
         {
             "openvino_model.xml",
             "openvino_model.bin",
-            "openvino_tokenizer.xml", 
+            "openvino_tokenizer.xml",
             "openvino_tokenizer.bin",
             "openvino_detokenizer.xml",
             "openvino_detokenizer.bin",
@@ -129,7 +137,7 @@ class Program
             try
             {
                 Console.Write($"Downloading {file}... ");
-                
+
                 var response = await httpClient.GetAsync(url);
                 response.EnsureSuccessStatusCode();
 
@@ -166,7 +174,7 @@ class Program
             for (int i = 0; i < TestPrompts.Length; i++)
             {
                 Console.WriteLine($"Prompt {i + 1}: \"{TestPrompts[i]}\"");
-                
+
                 var stopwatch = Stopwatch.StartNew();
                 var firstTokenTime = TimeSpan.Zero;
                 var tokenCount = 0;
@@ -180,7 +188,7 @@ class Program
                     {
                         firstTokenTime = stopwatch.Elapsed;
                     }
-                    
+
                     Console.Write(token);
                     response += token;
                     tokenCount++;
@@ -234,7 +242,7 @@ class Program
 
                 // Run a subset of prompts for benchmarking
                 var benchmarkPrompts = TestPrompts.Take(2).ToArray();
-                
+
                 foreach (var prompt in benchmarkPrompts)
                 {
                     var stopwatch = Stopwatch.StartNew();
@@ -252,7 +260,7 @@ class Program
 
                     stopwatch.Stop();
                     var tokensPerSecond = tokenCount / stopwatch.Elapsed.TotalSeconds;
-                    
+
                     deviceResults.Add(tokensPerSecond);
                     firstTokenLatencies.Add(firstTokenTime.TotalMilliseconds);
                 }

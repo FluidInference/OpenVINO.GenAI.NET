@@ -17,3 +17,18 @@ nuget/
 *.zip
 
 .vscode/
+
+# Native OpenVINO DLLs
+*.dll
+build/native/
+runtimes/win-x64/native/
+
+# Model downloads
+Models/
+*.bin
+*.xml
+
+# Test results
+TestResults/
+*.trx
+*.coverage

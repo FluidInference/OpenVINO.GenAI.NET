@@ -2,6 +2,8 @@
   
   <PropertyGroup>
     <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
+    <!-- In CI environment, suppress warnings about missing DLLs since they're downloaded separately -->
+    <SuppressOpenVINOWarnings Condition="'$(CI)' == 'true'">true</SuppressOpenVINOWarnings>
   </PropertyGroup>
 
   <!-- Copy native DLLs to output directory -->
@@ -31,7 +33,7 @@
              Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
 
     <Warning Text="OpenVINO GenAI: Native libraries not found at $(OpenVINOGenAIRuntimePath). Please ensure the native binaries are available." 
-             Condition="!Exists('$(OpenVINOGenAIRuntimePath)')" />
+             Condition="!Exists('$(OpenVINOGenAIRuntimePath)') AND '$(SuppressOpenVINOWarnings)' != 'true'" />
   </Target>
 
   <!-- For publish scenarios -->
