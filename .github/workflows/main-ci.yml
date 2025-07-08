@@ -77,6 +77,33 @@ jobs:
 
           Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
 
+      - name: Build Whisper C++ Wrapper
+        shell: pwsh
+        run: |
+          Write-Host "Building Whisper C++ wrapper..."
+          
+          # Set up build directory
+          $buildDir = "build/native/wrapper"
+          New-Item -ItemType Directory -Force -Path $buildDir
+          
+          # Set paths
+          $openvinoPath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64"
+          $targetPath = "build/native/runtimes/win-x64/native"
+          
+          # Configure CMake
+          cmake -S src/native -B $buildDir `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$openvinoPath" `
+            -DOpenVINOGenAI_DIR="$openvinoPath/cmake"
+          
+          # Build the wrapper
+          cmake --build $buildDir --config Release
+          
+          # Copy the wrapper DLL to the target directory
+          Copy-Item "$buildDir/Release/openvino_genai_c.dll" -Destination $targetPath -Force
+          
+          Write-Host "Whisper wrapper built and copied successfully"
+
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln
 
