@@ -62,8 +62,9 @@ else()
     
     # Find header files
     find_path(OPENVINO_GENAI_INCLUDE_DIR 
-        NAMES openvino/genai/whisper_pipeline.hpp
-              openvino/genai/llm_pipeline.hpp
+        NAMES openvino/genai/whisper_generation_config.hpp
+              openvino/genai/generation_config.hpp
+              openvino/genai/c/generation_config.h
         PATHS ${INCLUDE_SEARCH_PATHS}
         NO_DEFAULT_PATH)
     
