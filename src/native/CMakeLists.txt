@@ -60,33 +60,20 @@ else()
     message(STATUS "Include search paths: ${INCLUDE_SEARCH_PATHS}")
     message(STATUS "Library search paths: ${LIB_SEARCH_PATHS}")
     
-    # Find header files
-    find_path(OPENVINO_GENAI_INCLUDE_DIR 
-        NAMES openvino/genai/whisper_pipeline.hpp
-              openvino/genai/llm_pipeline.hpp
-              openvino/genai/generation_config.hpp
-        PATHS ${INCLUDE_SEARCH_PATHS}
-        NO_DEFAULT_PATH)
-    
-    # Debug: Show what was found
-    message(STATUS "OPENVINO_GENAI_INCLUDE_DIR result: ${OPENVINO_GENAI_INCLUDE_DIR}")
+    # Find header files - Use manual approach since find_path isn't working
+    set(OPENVINO_GENAI_INCLUDE_DIR "")
+    foreach(search_path ${INCLUDE_SEARCH_PATHS})
+        if(EXISTS "${search_path}/openvino/genai/whisper_pipeline.hpp" AND
+           EXISTS "${search_path}/openvino/genai/llm_pipeline.hpp" AND
+           EXISTS "${search_path}/openvino/genai/generation_config.hpp")
+            set(OPENVINO_GENAI_INCLUDE_DIR ${search_path})
+            break()
+        endif()
+    endforeach()
     
     if(OPENVINO_GENAI_INCLUDE_DIR)
         message(STATUS "Found OpenVINO GenAI headers: ${OPENVINO_GENAI_INCLUDE_DIR}")
     else()
-        # Let's try to find the files manually for debugging
-        foreach(search_path ${INCLUDE_SEARCH_PATHS})
-            message(STATUS "Checking path: ${search_path}")
-            if(EXISTS "${search_path}/openvino/genai/whisper_pipeline.hpp")
-                message(STATUS "  Found whisper_pipeline.hpp in ${search_path}")
-            endif()
-            if(EXISTS "${search_path}/openvino/genai/llm_pipeline.hpp")
-                message(STATUS "  Found llm_pipeline.hpp in ${search_path}")
-            endif()
-            if(EXISTS "${search_path}/openvino/genai/generation_config.hpp")
-                message(STATUS "  Found generation_config.hpp in ${search_path}")
-            endif()
-        endforeach()
         message(FATAL_ERROR "Could not find OpenVINO GenAI headers")
     endif()
     
