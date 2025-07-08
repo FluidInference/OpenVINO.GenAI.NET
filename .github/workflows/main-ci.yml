@@ -81,33 +81,33 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Building OpenVINO GenAI C++ wrapper..."
-          
+
           # Set up build directory
           $buildDir = "build/native/wrapper"
           New-Item -ItemType Directory -Force -Path $buildDir
-          
+
           # Set paths
           $openvinoPath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64"
           $targetPath = "build/native/runtimes/win-x64/native"
-          
+
           # Debug: List directory structure
           Write-Host "OpenVINO directory structure:"
           Get-ChildItem -Path $openvinoPath -Recurse -Name | Where-Object { $_ -like "*cmake*" -or $_ -like "*Config*" } | Sort-Object
-          
+
           # Set environment variable for CMake
           $env:OPENVINO_GENAI_ROOT = $openvinoPath
-          
+
           # Configure CMake with simplified paths
           cmake -S src/native -B $buildDir `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_PREFIX_PATH="$openvinoPath"
-          
+
           # Build the wrapper
           cmake --build $buildDir --config Release
-          
+
           # Copy the wrapper DLL to the target directory
           Copy-Item "$buildDir/Release/openvino_genai_c.dll" -Destination $targetPath -Force
-          
+
           Write-Host "OpenVINO GenAI wrapper built and copied successfully"
 
       - name: Restore dependencies
