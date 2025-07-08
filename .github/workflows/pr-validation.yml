@@ -111,7 +111,8 @@ jobs:
             --verbosity normal `
             --logger "trx;LogFileName=test-results.trx" `
             --collect:"XPlat Code Coverage" `
-            --results-directory ./TestResults
+            --results-directory ./TestResults `
+            --filter "FullyQualifiedName!~WhisperIntegrationTests"
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

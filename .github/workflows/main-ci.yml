@@ -102,6 +102,13 @@ jobs:
           path: Models/qwen3-0.6b-int4-ov
           key: model-qwen3-0.6b-int4-ov-v1
 
+      - name: Cache Whisper test model
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: Models/whisper-tiny.en
+          key: model-whisper-tiny-en-v1
+
       - name: Download INT4 model for testing
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
         shell: pwsh
@@ -137,6 +144,45 @@ jobs:
             Write-Host "Model already exists in cache"
           }
 
+      - name: Download Whisper model for testing
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        shell: pwsh
+        run: |
+          $modelPath = "Models/whisper-tiny.en"
+          if (-not (Test-Path "$modelPath/openvino_encoder_model.xml")) {
+            Write-Host "Downloading Whisper tiny.en model for transcription testing..."
+            New-Item -ItemType Directory -Force -Path $modelPath
+            
+            $files = @(
+              "openvino_encoder_model.xml",
+              "openvino_encoder_model.bin",
+              "openvino_decoder_model.xml", 
+              "openvino_decoder_model.bin",
+              "openvino_decoder_with_past_model.xml",
+              "openvino_decoder_with_past_model.bin",
+              "config.json",
+              "preprocessor_config.json"
+            )
+            
+            foreach ($file in $files) {
+              $url = "https://huggingface.co/openai/whisper-tiny.en/resolve/main/$file"
+              $outputFile = "$modelPath/$file"
+              Write-Host "Downloading $file..."
+              try {
+                Invoke-WebRequest -Uri $url -OutFile $outputFile -UseBasicParsing
+                Write-Host "✓ Downloaded $file"
+              }
+              catch {
+                Write-Host "⚠ Failed to download $file (may be optional): $_"
+              }
+            }
+            
+            Write-Host "Whisper model download completed"
+          }
+          else {
+            Write-Host "Whisper model already exists in cache"
+          }
+
       - name: Run QuickDemo inference test
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
         shell: pwsh
@@ -151,6 +197,21 @@ jobs:
 
           Write-Host "`nRunning benchmark mode..."
           dotnet run --project samples/QuickDemo --configuration Release -- --benchmark
+
+      - name: Run WhisperDemo inference test
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        shell: pwsh
+        run: |
+          Write-Host "Running WhisperDemo with tiny.en model on CPU..."
+
+          # Set model path environment variable
+          $env:WHISPERDEMO_MODEL_PATH = "Models/whisper-tiny.en"
+
+          # Run demo with CPU device
+          dotnet run --project samples/WhisperDemo --configuration Release -- --device CPU
+
+          Write-Host "`nRunning Whisper benchmark mode..."
+          dotnet run --project samples/WhisperDemo --configuration Release -- --benchmark
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
