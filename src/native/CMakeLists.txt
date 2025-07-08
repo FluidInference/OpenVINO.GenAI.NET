@@ -77,32 +77,81 @@ else()
         message(FATAL_ERROR "Could not find OpenVINO GenAI headers")
     endif()
     
-    # Find library files - Use manual approach since find_library isn't working
+    # Find library files - Use manual approach with extensive debugging
     set(OPENVINO_GENAI_LIBRARY "")
+    
+    # Debug: List all .lib files in search paths
     foreach(search_path ${LIB_SEARCH_PATHS})
-        if(EXISTS "${search_path}/openvino_genai.lib")
-            set(OPENVINO_GENAI_LIBRARY "${search_path}/openvino_genai.lib")
+        message(STATUS "Checking library path: ${search_path}")
+        if(EXISTS "${search_path}")
+            file(GLOB lib_files "${search_path}/*.lib")
+            if(lib_files)
+                message(STATUS "  Found .lib files:")
+                foreach(lib_file ${lib_files})
+                    get_filename_component(lib_name ${lib_file} NAME)
+                    message(STATUS "    - ${lib_name}")
+                endforeach()
+            else()
+                message(STATUS "  No .lib files found in ${search_path}")
+            endif()
+        else()
+            message(STATUS "  Path does not exist: ${search_path}")
+        endif()
+    endforeach()
+    
+    # Try multiple possible library names
+    set(POSSIBLE_GENAI_NAMES 
+        "openvino_genai.lib"
+        "openvino_genai_c.lib"
+        "genai.lib"
+        "libopenvino_genai.lib"
+    )
+    
+    foreach(search_path ${LIB_SEARCH_PATHS})
+        foreach(lib_name ${POSSIBLE_GENAI_NAMES})
+            set(full_lib_path "${search_path}/${lib_name}")
+            if(EXISTS "${full_lib_path}")
+                set(OPENVINO_GENAI_LIBRARY "${full_lib_path}")
+                message(STATUS "Found OpenVINO GenAI library: ${OPENVINO_GENAI_LIBRARY}")
+                break()
+            endif()
+        endforeach()
+        if(OPENVINO_GENAI_LIBRARY)
             break()
         endif()
     endforeach()
     
-    if(OPENVINO_GENAI_LIBRARY)
-        message(STATUS "Found OpenVINO GenAI library: ${OPENVINO_GENAI_LIBRARY}")
-    else()
-        message(FATAL_ERROR "Could not find OpenVINO GenAI library")
+    if(NOT OPENVINO_GENAI_LIBRARY)
+        message(FATAL_ERROR "Could not find OpenVINO GenAI library. Searched for: ${POSSIBLE_GENAI_NAMES}")
     endif()
     
-    # Find additional dependencies - Use manual approach
+    # Find additional dependencies - Use manual approach with multiple names
     set(OPENVINO_CORE_LIBRARY "")
+    
+    # Try multiple possible OpenVINO core library names
+    set(POSSIBLE_CORE_NAMES 
+        "openvino.lib"
+        "openvino_c.lib"
+        "libopenvino.lib"
+        "openvino_runtime.lib"
+    )
+    
     foreach(search_path ${LIB_SEARCH_PATHS})
-        if(EXISTS "${search_path}/openvino.lib")
-            set(OPENVINO_CORE_LIBRARY "${search_path}/openvino.lib")
+        foreach(lib_name ${POSSIBLE_CORE_NAMES})
+            set(full_lib_path "${search_path}/${lib_name}")
+            if(EXISTS "${full_lib_path}")
+                set(OPENVINO_CORE_LIBRARY "${full_lib_path}")
+                message(STATUS "Found OpenVINO Core library: ${OPENVINO_CORE_LIBRARY}")
+                break()
+            endif()
+        endforeach()
+        if(OPENVINO_CORE_LIBRARY)
             break()
         endif()
     endforeach()
     
-    if(OPENVINO_CORE_LIBRARY)
-        message(STATUS "Found OpenVINO Core library: ${OPENVINO_CORE_LIBRARY}")
+    if(NOT OPENVINO_CORE_LIBRARY)
+        message(WARNING "Could not find OpenVINO Core library. Searched for: ${POSSIBLE_CORE_NAMES}")
     endif()
     
     # Create imported target
