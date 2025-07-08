@@ -97,7 +97,22 @@ jobs:
           # Set environment variable for CMake
           $env:OPENVINO_GENAI_ROOT = $openvinoPath
 
-          # Configure CMake with simplified paths
+          Write-Host "📂 OpenVINO directory structure analysis..."
+          if (Test-Path "$openvinoPath/runtime/include/openvino/genai") {
+            Write-Host "✓ Found GenAI headers at: $openvinoPath/runtime/include/openvino/genai"
+            Get-ChildItem "$openvinoPath/runtime/include/openvino/genai" -Name | ForEach-Object { Write-Host "  - $_" }
+          } else {
+            Write-Host "❌ GenAI headers not found at: $openvinoPath/runtime/include/openvino/genai"
+          }
+
+          if (Test-Path "$openvinoPath/runtime/lib") {
+            Write-Host "✓ Found lib directory at: $openvinoPath/runtime/lib"
+            Get-ChildItem "$openvinoPath/runtime/lib" -Name "*.lib" | ForEach-Object { Write-Host "  - $_" }
+          } else {
+            Write-Host "❌ Lib directory not found at: $openvinoPath/runtime/lib"
+          }
+
+          # Configure CMake with enhanced debugging
           cmake -S src/native -B $buildDir `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_PREFIX_PATH="$openvinoPath"

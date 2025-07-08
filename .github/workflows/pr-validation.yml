@@ -267,6 +267,27 @@ jobs:
           # Set environment for CMake
           $env:OPENVINO_GENAI_ROOT = $openvinoPath
 
+          Write-Host "📋 Environment check..."
+          Write-Host "  OPENVINO_GENAI_ROOT: $openvinoPath"
+          Write-Host "  CMAKE_PREFIX_PATH: $openvinoPath"
+          Write-Host "  Build directory: $buildDir"
+          Write-Host "  Target directory: $targetPath"
+
+          Write-Host "📂 OpenVINO directory structure analysis..."
+          if (Test-Path "$openvinoPath/runtime/include/openvino/genai") {
+            Write-Host "✓ Found GenAI headers at: $openvinoPath/runtime/include/openvino/genai"
+            Get-ChildItem "$openvinoPath/runtime/include/openvino/genai" -Name | ForEach-Object { Write-Host "  - $_" }
+          } else {
+            Write-Host "❌ GenAI headers not found at: $openvinoPath/runtime/include/openvino/genai"
+          }
+
+          if (Test-Path "$openvinoPath/runtime/lib") {
+            Write-Host "✓ Found lib directory at: $openvinoPath/runtime/lib"
+            Get-ChildItem "$openvinoPath/runtime/lib" -Name "*.lib" | ForEach-Object { Write-Host "  - $_" }
+          } else {
+            Write-Host "❌ Lib directory not found at: $openvinoPath/runtime/lib"
+          }
+
           Write-Host "📋 CMake Configuration..."
           cmake -S src/native -B $buildDir `
             -DCMAKE_BUILD_TYPE=Release `
@@ -370,8 +391,8 @@ jobs:
         run: |
           Write-Host "🧪 Testing basic P/Invoke integration..."
 
-          # Create test program using individual lines to avoid here-string issues
-          @"
+          # Create test program
+          $testProgram = @'
           using System;
           using System.Runtime.InteropServices;
 
@@ -417,7 +438,10 @@ jobs:
                   }
               }
           }
-          "@ | Out-File -FilePath "DllTest.cs" -Encoding UTF8
+          '@
+
+          # Write test program to file
+          $testProgram | Out-File -FilePath "DllTest.cs" -Encoding UTF8
 
           # Copy DLL to current directory for testing
           Copy-Item "build/native/runtimes/win-x64/native/openvino_genai_c.dll" -Destination "." -Force
