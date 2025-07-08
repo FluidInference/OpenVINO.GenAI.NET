@@ -87,6 +87,49 @@ jobs:
             [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $outputPath)
             Remove-Item $zipPath
             
+            # Validate extracted package structure
+            $extractedDir = "$outputPath/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64"
+            Write-Host "🔍 Validating extracted package structure..."
+            
+            if (-not (Test-Path $extractedDir)) {
+              Write-Host "❌ Extracted directory not found: $extractedDir"
+              Write-Host "Available directories:"
+              Get-ChildItem $outputPath -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+              exit 1
+            }
+            
+            # Check for expected DLL files
+            $dllPath = "$extractedDir/runtime/bin/intel64/Release"
+            if (Test-Path $dllPath) {
+              $dllFiles = Get-ChildItem "$dllPath/*.dll"
+              if ($dllFiles.Count -gt 0) {
+                Write-Host "✅ Found $($dllFiles.Count) DLL files in runtime/bin/intel64/Release:"
+                $dllFiles | ForEach-Object { Write-Host "  - $($_.Name)" }
+              } else {
+                Write-Host "❌ No DLL files found in $dllPath"
+              }
+            } else {
+              Write-Host "❌ Expected DLL path not found: $dllPath"
+            }
+            
+            # Check for headers
+            $headerPath = "$extractedDir/runtime/include/openvino/genai"
+            if (Test-Path $headerPath) {
+              $headerFiles = Get-ChildItem "$headerPath/*.hpp"
+              Write-Host "✅ Found $($headerFiles.Count) header files in runtime/include/openvino/genai"
+            } else {
+              Write-Host "❌ Expected header path not found: $headerPath"
+            }
+            
+            # Check for CMake files
+            $cmakePath = "$extractedDir/runtime/cmake"
+            if (Test-Path $cmakePath) {
+              $cmakeFiles = Get-ChildItem "$cmakePath/*GenAI*.cmake"
+              Write-Host "✅ Found $($cmakeFiles.Count) CMake config files in runtime/cmake"
+            } else {
+              Write-Host "❌ Expected CMake path not found: $cmakePath"
+            }
+            
             Write-Host "✅ OpenVINO Runtime downloaded and extracted successfully"
           }
           catch {

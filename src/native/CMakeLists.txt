@@ -32,12 +32,32 @@ if(CMAKE_PREFIX_PATH)
     list(APPEND OPENVINO_GENAI_SEARCH_PATHS "${CMAKE_PREFIX_PATH}")
 endif()
 
-# Try to find OpenVINO GenAI package first
+# Try to find OpenVINO GenAI package first with enhanced debugging
+message(STATUS "Attempting to find OpenVINO GenAI package...")
+message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+message(STATUS "OpenVINOGenAI_DIR: ${OpenVINOGenAI_DIR}")
+
 find_package(OpenVINOGenAI QUIET)
 if(OpenVINOGenAI_FOUND)
-    message(STATUS "Found OpenVINO GenAI package")
+    message(STATUS "✅ Found OpenVINO GenAI package successfully!")
+    message(STATUS "OpenVINOGenAI_VERSION: ${OpenVINOGenAI_VERSION}")
+    message(STATUS "OpenVINOGenAI_INCLUDE_DIRS: ${OpenVINOGenAI_INCLUDE_DIRS}")
+    message(STATUS "OpenVINOGenAI_LIBRARIES: ${OpenVINOGenAI_LIBRARIES}")
+    
+    # Check if the package actually provides the target we need
+    if(TARGET openvino::genai)
+        message(STATUS "✅ openvino::genai target is available")
+        set(OPENVINO_GENAI_FOUND TRUE)
+    else()
+        message(STATUS "❌ openvino::genai target not found, falling back to manual detection")
+        set(OPENVINO_GENAI_FOUND FALSE)
+    endif()
 else()
-    message(STATUS "OpenVINO GenAI package not found, trying manual detection...")
+    message(STATUS "❌ OpenVINO GenAI package not found, trying manual detection...")
+    set(OPENVINO_GENAI_FOUND FALSE)
+endif()
+
+if(NOT OPENVINO_GENAI_FOUND)
     
     # Manual detection with enhanced paths
     set(INCLUDE_SEARCH_PATHS)
@@ -289,6 +309,11 @@ else()
     endif()
     
     message(STATUS "OpenVINO GenAI configured manually")
+endif()
+
+# Final configuration - ensure we have the target
+if(NOT TARGET openvino::genai)
+    message(FATAL_ERROR "Failed to create openvino::genai target. The OpenVINO GenAI package may be incomplete or corrupted.")
 endif()
 
 # Link against OpenVINO GenAI
