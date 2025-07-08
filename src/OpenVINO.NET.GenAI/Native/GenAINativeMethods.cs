@@ -261,4 +261,220 @@ internal static class GenAINativeMethods
         IntPtr metrics, [Out] out float mean, [Out] out float std);
 
     #endregion
+
+    #region Whisper Pipeline Methods
+
+    /// <summary>
+    /// Create Whisper pipeline
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    internal static extern ov_status_e ov_genai_whisper_pipeline_create(
+        [MarshalAs(UnmanagedType.LPStr)] string models_path,
+        [MarshalAs(UnmanagedType.LPStr)] string device,
+        nuint property_args_size,
+        [Out] out IntPtr pipe);
+
+    /// <summary>
+    /// Free Whisper pipeline
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void ov_genai_whisper_pipeline_free(IntPtr pipe);
+
+    /// <summary>
+    /// Generate transcription using Whisper pipeline
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_pipeline_generate(
+        IntPtr pipe,
+        [MarshalAs(UnmanagedType.LPArray)] float[] raw_speech_input,
+        nuint raw_speech_input_size,
+        IntPtr config,
+        IntPtr streamer,
+        [Out] out IntPtr results);
+
+    /// <summary>
+    /// Get generation config from Whisper pipeline
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_pipeline_get_generation_config(
+        IntPtr pipe,
+        [Out] out IntPtr config);
+
+    /// <summary>
+    /// Set generation config to Whisper pipeline
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_pipeline_set_generation_config(
+        IntPtr pipe,
+        IntPtr config);
+
+    #endregion
+
+    #region Whisper Generation Config Methods
+
+    /// <summary>
+    /// Create Whisper generation config
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_create([Out] out IntPtr config);
+
+    /// <summary>
+    /// Free Whisper generation config
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void ov_genai_whisper_generation_config_free(IntPtr config);
+
+    /// <summary>
+    /// Set language for Whisper generation
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_language(
+        IntPtr config, [MarshalAs(UnmanagedType.LPStr)] string language);
+
+    /// <summary>
+    /// Set task for Whisper generation (transcribe/translate)
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_task(
+        IntPtr config, [MarshalAs(UnmanagedType.LPStr)] string task);
+
+    /// <summary>
+    /// Set return_timestamps flag for Whisper generation
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_return_timestamps(
+        IntPtr config, [MarshalAs(UnmanagedType.I1)] bool return_timestamps);
+
+    /// <summary>
+    /// Set initial prompt for Whisper generation
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_initial_prompt(
+        IntPtr config, [MarshalAs(UnmanagedType.LPStr)] string initial_prompt);
+
+    /// <summary>
+    /// Set hotwords for Whisper generation
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_hotwords(
+        IntPtr config, [MarshalAs(UnmanagedType.LPStr)] string hotwords);
+
+    /// <summary>
+    /// Set max_initial_timestamp_index for Whisper generation
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_max_initial_timestamp_index(
+        IntPtr config, nuint max_initial_timestamp_index);
+
+    /// <summary>
+    /// Set decoder_start_token_id for Whisper generation
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_decoder_start_token_id(
+        IntPtr config, long decoder_start_token_id);
+
+    /// <summary>
+    /// Set suppress_tokens for Whisper generation
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_suppress_tokens(
+        IntPtr config,
+        [MarshalAs(UnmanagedType.LPArray)] long[] suppress_tokens,
+        nuint suppress_tokens_size);
+
+    /// <summary>
+    /// Set begin_suppress_tokens for Whisper generation
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_generation_config_set_begin_suppress_tokens(
+        IntPtr config,
+        [MarshalAs(UnmanagedType.LPArray)] long[] begin_suppress_tokens,
+        nuint begin_suppress_tokens_size);
+
+    #endregion
+
+    #region Whisper Decoded Results Methods
+
+    /// <summary>
+    /// Create Whisper decoded results
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_decoded_results_create([Out] out IntPtr results);
+
+    /// <summary>
+    /// Free Whisper decoded results
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void ov_genai_whisper_decoded_results_free(IntPtr results);
+
+    /// <summary>
+    /// Get number of text results from Whisper decoded results
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_decoded_results_get_texts_size(
+        IntPtr results,
+        [Out] out nuint texts_size);
+
+    /// <summary>
+    /// Get text at index from Whisper decoded results
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_decoded_results_get_text_at(
+        IntPtr results,
+        nuint index,
+        IntPtr output,
+        ref nuint output_size);
+
+    /// <summary>
+    /// Get number of chunks from Whisper decoded results
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_decoded_results_get_chunks_size(
+        IntPtr results,
+        [Out] out nuint chunks_size);
+
+    /// <summary>
+    /// Get chunk at index from Whisper decoded results
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_decoded_results_get_chunk_at(
+        IntPtr results,
+        nuint index,
+        [Out] out whisper_result_chunk chunk);
+
+    /// <summary>
+    /// Get scores from Whisper decoded results
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_decoded_results_get_scores(
+        IntPtr results,
+        [MarshalAs(UnmanagedType.LPArray)] float[] scores,
+        nuint scores_size);
+
+    /// <summary>
+    /// Get performance metrics from Whisper decoded results
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_decoded_results_get_perf_metrics(
+        IntPtr results,
+        [Out] out IntPtr metrics);
+
+    #endregion
+
+    #region Whisper Performance Metrics Methods
+
+    /// <summary>
+    /// Get features extraction duration from Whisper performance metrics
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_whisper_perf_metrics_get_features_extraction_duration(
+        IntPtr metrics, [Out] out float mean, [Out] out float std);
+
+    /// <summary>
+    /// Free Whisper performance metrics
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void ov_genai_whisper_perf_metrics_free(IntPtr metrics);
+
+    #endregion
 }

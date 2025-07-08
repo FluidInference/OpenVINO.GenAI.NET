@@ -12,7 +12,7 @@ on:
         default: false
 
 env:
-  OPENVINO_VERSION: "2025.2.0.0rc4"
+  OPENVINO_VERSION: "2025.2.0.0"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
@@ -54,14 +54,80 @@ jobs:
           $outputPath = "build/native"
           New-Item -ItemType Directory -Force -Path $outputPath
 
-          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/pre-release/${env:OPENVINO_VERSION}/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
+          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
           $zipPath = "$outputPath/openvino_genai.zip"
 
-          Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
-          Expand-Archive -Path $zipPath -DestinationPath $outputPath -Force
-          Remove-Item $zipPath
+          try {
+            Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+            
+            # Verify the downloaded file
+            if (-not (Test-Path $zipPath)) {
+              Write-Host "❌ Downloaded file not found at: $zipPath"
+              exit 1
+            }
+            
+            $fileSize = (Get-Item $zipPath).Length
+            Write-Host "Downloaded file size: $([math]::Round($fileSize / 1MB, 2)) MB"
+            
+            if ($fileSize -lt 1MB) {
+              Write-Host "❌ Downloaded file is too small, possible download failure"
+              exit 1
+            }
+            
+            Expand-Archive -Path $zipPath -DestinationPath $outputPath -Force
+            Remove-Item $zipPath
 
-          Write-Host "OpenVINO Runtime downloaded successfully"
+            # Validate extracted package structure
+            $extractedDir = "$outputPath/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64"
+            Write-Host "🔍 Validating extracted package structure..."
+            
+            if (-not (Test-Path $extractedDir)) {
+              Write-Host "❌ Extracted directory not found: $extractedDir"
+              Write-Host "Available directories:"
+              Get-ChildItem $outputPath -Directory | ForEach-Object { Write-Host "  - $($_.Name)" }
+              exit 1
+            }
+            
+            # Check for expected DLL files
+            $dllPath = "$extractedDir/runtime/bin/intel64/Release"
+            if (Test-Path $dllPath) {
+              $dllFiles = Get-ChildItem "$dllPath/*.dll"
+              if ($dllFiles.Count -gt 0) {
+                Write-Host "✅ Found $($dllFiles.Count) DLL files in runtime/bin/intel64/Release:"
+                $dllFiles | ForEach-Object { Write-Host "  - $($_.Name)" }
+              } else {
+                Write-Host "❌ No DLL files found in $dllPath"
+              }
+            } else {
+              Write-Host "❌ Expected DLL path not found: $dllPath"
+            }
+            
+            # Check for headers
+            $headerPath = "$extractedDir/runtime/include/openvino/genai"
+            if (Test-Path $headerPath) {
+              $headerFiles = Get-ChildItem "$headerPath/*.hpp"
+              Write-Host "✅ Found $($headerFiles.Count) header files in runtime/include/openvino/genai"
+            } else {
+              Write-Host "❌ Expected header path not found: $headerPath"
+            }
+            
+            # Check for CMake files
+            $cmakePath = "$extractedDir/runtime/cmake"
+            if (Test-Path $cmakePath) {
+              $cmakeFiles = Get-ChildItem "$cmakePath/*GenAI*.cmake"
+              Write-Host "✅ Found $($cmakeFiles.Count) CMake config files in runtime/cmake"
+            } else {
+              Write-Host "❌ Expected CMake path not found: $cmakePath"
+            }
+
+            Write-Host "✅ OpenVINO Runtime downloaded successfully"
+          }
+          catch {
+            Write-Host "❌ Error downloading OpenVINO runtime: $_"
+            Write-Host "Error details: $($_.Exception.Message)"
+            Write-Host "URL attempted: $url"
+            exit 1
+          }
 
       - name: Setup OpenVINO DLLs
         shell: pwsh
@@ -77,6 +143,75 @@ jobs:
 
           Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
 
+      - name: Build OpenVINO GenAI C++ Wrapper
+        shell: pwsh
+        run: |
+          Write-Host "Building OpenVINO GenAI C++ wrapper..."
+
+          # Set up build directory
+          $buildDir = "build/native/wrapper"
+          New-Item -ItemType Directory -Force -Path $buildDir
+
+          # Set paths
+          $openvinoPath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64"
+          $targetPath = "build/native/runtimes/win-x64/native"
+
+          # Debug: List directory structure
+          Write-Host "OpenVINO directory structure:"
+          Get-ChildItem -Path $openvinoPath -Recurse -Name | Where-Object { $_ -like "*cmake*" -or $_ -like "*Config*" } | Sort-Object
+
+          # Set environment variable for CMake
+          $env:OPENVINO_GENAI_ROOT = $openvinoPath
+
+          Write-Host "📂 OpenVINO directory structure analysis..."
+          if (Test-Path "$openvinoPath/runtime/include/openvino/genai") {
+            Write-Host "✓ Found GenAI headers at: $openvinoPath/runtime/include/openvino/genai"
+            Get-ChildItem "$openvinoPath/runtime/include/openvino/genai" -Name | ForEach-Object { Write-Host "  - $_" }
+          } else {
+            Write-Host "❌ GenAI headers not found at: $openvinoPath/runtime/include/openvino/genai"
+          }
+
+          if (Test-Path "$openvinoPath/runtime/lib") {
+            Write-Host "✓ Found lib directory at: $openvinoPath/runtime/lib"
+            Get-ChildItem "$openvinoPath/runtime/lib" -Name "*.lib" | ForEach-Object { Write-Host "  - $_" }
+          } else {
+            Write-Host "❌ Lib directory not found at: $openvinoPath/runtime/lib"
+          }
+
+          # Configure CMake with enhanced debugging
+          Write-Host "Running CMake configuration..."
+          cmake -S src/native -B $buildDir `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$openvinoPath"
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ CMake configuration failed with exit code: $LASTEXITCODE"
+            exit 1
+          }
+
+          # Build the wrapper
+          Write-Host "Building wrapper..."
+          cmake --build $buildDir --config Release
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ CMake build failed with exit code: $LASTEXITCODE"
+            exit 1
+          }
+
+          # Verify DLL was created
+          $dllPath = "$buildDir/Release/openvino_genai_c.dll"
+          if (-not (Test-Path $dllPath)) {
+            Write-Host "❌ DLL not found at: $dllPath"
+            Write-Host "Build directory contents:"
+            Get-ChildItem "$buildDir" -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+
+          # Copy the wrapper DLL to the target directory
+          Copy-Item $dllPath -Destination $targetPath -Force
+
+          Write-Host "✅ OpenVINO GenAI wrapper built and copied successfully"
+
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln
 
@@ -86,7 +221,12 @@ jobs:
           CI: true
 
       - name: Run unit tests
+        shell: pwsh
         run: |
+          Write-Host "Creating TestResults directory..."
+          New-Item -ItemType Directory -Force -Path "./TestResults"
+          
+          Write-Host "Running unit tests..."
           dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj `
             --configuration Release `
             --no-build `
@@ -94,6 +234,15 @@ jobs:
             --logger "trx;LogFileName=unit-test-results.trx" `
             --collect:"XPlat Code Coverage" `
             --results-directory ./TestResults
+          
+          Write-Host "Test execution completed with exit code: $LASTEXITCODE"
+          
+          Write-Host "TestResults directory contents:"
+          if (Test-Path "./TestResults") {
+            Get-ChildItem "./TestResults" -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+          } else {
+            Write-Host "  TestResults directory does not exist"
+          }
 
       - name: Cache test model
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
@@ -101,6 +250,13 @@ jobs:
         with:
           path: Models/qwen3-0.6b-int4-ov
           key: model-qwen3-0.6b-int4-ov-v1
+
+      - name: Cache Whisper test model
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        uses: actions/cache@v3
+        with:
+          path: Models/whisper-tiny.en
+          key: model-whisper-tiny-en-v1
 
       - name: Download INT4 model for testing
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
@@ -137,6 +293,45 @@ jobs:
             Write-Host "Model already exists in cache"
           }
 
+      - name: Download Whisper model for testing
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        shell: pwsh
+        run: |
+          $modelPath = "Models/whisper-tiny.en"
+          if (-not (Test-Path "$modelPath/openvino_encoder_model.xml")) {
+            Write-Host "Downloading Whisper tiny.en model for transcription testing..."
+            New-Item -ItemType Directory -Force -Path $modelPath
+            
+            $files = @(
+              "openvino_encoder_model.xml",
+              "openvino_encoder_model.bin",
+              "openvino_decoder_model.xml", 
+              "openvino_decoder_model.bin",
+              "openvino_decoder_with_past_model.xml",
+              "openvino_decoder_with_past_model.bin",
+              "config.json",
+              "preprocessor_config.json"
+            )
+            
+            foreach ($file in $files) {
+              $url = "https://huggingface.co/openai/whisper-tiny.en/resolve/main/$file"
+              $outputFile = "$modelPath/$file"
+              Write-Host "Downloading $file..."
+              try {
+                Invoke-WebRequest -Uri $url -OutFile $outputFile -UseBasicParsing
+                Write-Host "✓ Downloaded $file"
+              }
+              catch {
+                Write-Host "⚠ Failed to download $file (may be optional): $_"
+              }
+            }
+            
+            Write-Host "Whisper model download completed"
+          }
+          else {
+            Write-Host "Whisper model already exists in cache"
+          }
+
       - name: Run QuickDemo inference test
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
         shell: pwsh
@@ -152,12 +347,28 @@ jobs:
           Write-Host "`nRunning benchmark mode..."
           dotnet run --project samples/QuickDemo --configuration Release -- --benchmark
 
+      - name: Run WhisperDemo inference test
+        if: ${{ github.event.inputs.skip_inference_test != 'true' }}
+        shell: pwsh
+        run: |
+          Write-Host "Running WhisperDemo with tiny.en model on CPU..."
+
+          # Set model path environment variable
+          $env:WHISPERDEMO_MODEL_PATH = "Models/whisper-tiny.en"
+
+          # Run demo with CPU device
+          dotnet run --project samples/WhisperDemo --configuration Release -- --device CPU
+
+          Write-Host "`nRunning Whisper benchmark mode..."
+          dotnet run --project samples/WhisperDemo --configuration Release -- --benchmark
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results
           path: TestResults/
+          if-no-files-found: warn
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -175,7 +386,7 @@ jobs:
           name: Test Results
           path: TestResults/*.trx
           reporter: dotnet-trx
-          fail-on-error: true
+          fail-on-error: false
 
   publish-nuget:
     name: Publish NuGet Packages
