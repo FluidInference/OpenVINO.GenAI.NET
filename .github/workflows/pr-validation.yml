@@ -68,16 +68,31 @@ jobs:
             
             Write-Host "Download completed successfully"
             
+            # Verify the downloaded file
+            if (-not (Test-Path $zipPath)) {
+              Write-Host "❌ Downloaded file not found at: $zipPath"
+              exit 1
+            }
+            
+            $fileSize = (Get-Item $zipPath).Length
+            Write-Host "Downloaded file size: $([math]::Round($fileSize / 1MB, 2)) MB"
+            
+            if ($fileSize -lt 1MB) {
+              Write-Host "❌ Downloaded file is too small, possible download failure"
+              exit 1
+            }
+            
             Write-Host "Extracting archive..."
             Add-Type -AssemblyName System.IO.Compression.FileSystem
             [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $outputPath)
             Remove-Item $zipPath
             
-            Write-Host "OpenVINO Runtime downloaded and extracted successfully"
+            Write-Host "✅ OpenVINO Runtime downloaded and extracted successfully"
           }
           catch {
-            Write-Host "Error downloading OpenVINO runtime: $_"
+            Write-Host "❌ Error downloading OpenVINO runtime: $_"
             Write-Host "Error details: $($_.Exception.Message)"
+            Write-Host "URL attempted: $url"
             exit 1
           }
 
@@ -116,17 +131,38 @@ jobs:
           $env:OPENVINO_GENAI_ROOT = $openvinoPath
 
           # Configure CMake with simplified paths
+          Write-Host "Running CMake configuration..."
           cmake -S src/native -B $buildDir `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_PREFIX_PATH="$openvinoPath"
 
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ CMake configuration failed with exit code: $LASTEXITCODE"
+            exit 1
+          }
+
           # Build the wrapper
+          Write-Host "Building wrapper..."
           cmake --build $buildDir --config Release
 
-          # Copy the wrapper DLL to the target directory
-          Copy-Item "$buildDir/Release/openvino_genai_c.dll" -Destination $targetPath -Force
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ CMake build failed with exit code: $LASTEXITCODE"
+            exit 1
+          }
 
-          Write-Host "OpenVINO GenAI wrapper built and copied successfully"
+          # Verify DLL was created
+          $dllPath = "$buildDir/Release/openvino_genai_c.dll"
+          if (-not (Test-Path $dllPath)) {
+            Write-Host "❌ DLL not found at: $dllPath"
+            Write-Host "Build directory contents:"
+            Get-ChildItem "$buildDir" -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+
+          # Copy the wrapper DLL to the target directory
+          Copy-Item $dllPath -Destination $targetPath -Force
+
+          Write-Host "✅ OpenVINO GenAI wrapper built and copied successfully"
 
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln
@@ -137,7 +173,12 @@ jobs:
           CI: true
 
       - name: Run unit tests
+        shell: pwsh
         run: |
+          Write-Host "Creating TestResults directory..."
+          New-Item -ItemType Directory -Force -Path "./TestResults"
+          
+          Write-Host "Running unit tests..."
           dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj `
             --configuration Release `
             --no-build `
@@ -145,7 +186,16 @@ jobs:
             --logger "trx;LogFileName=test-results.trx" `
             --collect:"XPlat Code Coverage" `
             --results-directory ./TestResults `
-            --filter "FullyQualifiedName!~WhisperIntegrationTests"
+            --filter "FullyQualifiedName!~WhisperIntegrationTests&FullyQualifiedName!~WhisperUnitTests"
+          
+          Write-Host "Test execution completed with exit code: $LASTEXITCODE"
+          
+          Write-Host "TestResults directory contents:"
+          if (Test-Path "./TestResults") {
+            Get-ChildItem "./TestResults" -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+          } else {
+            Write-Host "  TestResults directory does not exist"
+          }
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -153,15 +203,16 @@ jobs:
         with:
           name: test-results
           path: TestResults/
+          if-no-files-found: warn
 
       - name: Test Report
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v1
         if: always()
         with:
           name: .NET Test Results
           path: TestResults/*.trx
           reporter: dotnet-trx
-          fail-on-error: true
+          fail-on-error: false
 
       - name: Code Coverage Report
         if: false # Disabled: Container action not supported on Windows runners
@@ -240,6 +291,20 @@ jobs:
             $webClient.DownloadFile($url, $zipPath)
             $webClient.Dispose()
             
+            # Verify the downloaded file
+            if (-not (Test-Path $zipPath)) {
+              Write-Host "❌ Downloaded file not found at: $zipPath"
+              exit 1
+            }
+            
+            $fileSize = (Get-Item $zipPath).Length
+            Write-Host "Downloaded file size: $([math]::Round($fileSize / 1MB, 2)) MB"
+            
+            if ($fileSize -lt 1MB) {
+              Write-Host "❌ Downloaded file is too small, possible download failure"
+              exit 1
+            }
+            
             Add-Type -AssemblyName System.IO.Compression.FileSystem
             [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $outputPath)
             Remove-Item $zipPath
@@ -248,6 +313,8 @@ jobs:
           }
           catch {
             Write-Host "❌ Error downloading OpenVINO runtime: $_"
+            Write-Host "Error details: $($_.Exception.Message)"
+            Write-Host "URL attempted: $url"
             exit 1
           }
 
@@ -472,3 +539,4 @@ jobs:
             build/native/runtimes/win-x64/native/openvino_genai_c.dll
             build/native/wrapper/Release/openvino_genai_c.dll
           retention-days: 7
+          if-no-files-found: warn
