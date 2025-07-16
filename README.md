@@ -53,7 +53,7 @@ Console.WriteLine(result);
 
 ## Coming
 
-Nuget package, Whisper pipeline, pyannote models
+Nuget package, Whisper pipeline, pyannote models for NPU
 
 ## Alternatives
 
