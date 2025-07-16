@@ -32,7 +32,7 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Cache NuGet packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
@@ -41,7 +41,7 @@ jobs:
 
       - name: Cache OpenVINO Runtime
         id: cache-openvino
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
           key: openvino-runtime-${{ env.OPENVINO_VERSION }}
