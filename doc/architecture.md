@@ -1,80 +1,93 @@
 # Architecture Overview
 
-## Three-Layer Design
+## C API Interoperability Layer
+
+This is how it works, peeling the onion layers:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Your Application                         │
-└─────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────┐
-│                OpenVINO.NET.GenAI                          │
-│  • LLMPipeline (High-level API)                            │
-│  • GenerationConfig (Fluent configuration)                 │
-│  • ChatSession (Conversation management)                   │
-│  • IAsyncEnumerable streaming                              │
-└─────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────┐
-│                OpenVINO.NET.Core                           │
-│  • Core OpenVINO functionality                             │
-│  • Model loading and inference                             │
-└─────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────┐
-│               OpenVINO.NET.Native                          │
-│  • P/Invoke declarations                                    │
-│  • SafeHandle resource management                          │
-│  • MSBuild targets for DLL deployment                      │
-└─────────────────────────────────────────────────────────────┘
-                                ↓
-┌─────────────────────────────────────────────────────────────┐
-│            OpenVINO GenAI C API                            │
-│  • Native OpenVINO GenAI runtime                           │
-│  • Version: 2025.2.0.0-rc4                                 │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      .NET Application                           │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              Your C# Code                               │    │
+│  │  using var pipeline = new LLMPipeline("model", "CPU");  │    │
+│  │  string result = await pipeline.GenerateAsync(...);     │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                │ C# Method Calls
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                OpenVINO.NET.GenAI Library                       │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │         Managed C# Wrapper Classes                      │    │
+│  │  - LLMPipeline                                          │    │
+│  │  - GenerationConfig                                     │    │
+│  │  - WhisperPipeline (coming soon)                        │    │
+│  │  - SafeHandles for memory management                    │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                │ P/Invoke Calls
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   P/Invoke Layer                                │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              NativeMethods                              │    │
+│  │  [DllImport("openvino_genai_c.dll")]                    │    │
+│  │  public static extern ov_status_e                       │    │
+│  │  ov_genai_llm_pipeline_create(...)                      │    │
+│  │  ov_genai_llm_pipeline_generate(...)                    │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                │ Native Function Calls
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    C API Layer                                  │
+│                 (openvino_genai_c.dll)                          │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │         OpenVINO GenAI C API                            │    │
+│  │  - ov_genai_llm_pipeline_create()                       │    │
+│  │  - ov_genai_llm_pipeline_generate()                     │    │
+│  │  - ov_genai_llm_pipeline_free()                         │    │
+│  │  - Streaming callbacks & marshaling                     │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                │ C++ Function Calls
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                 OpenVINO GenAI Core                             │
+│                 (openvino_genai.dll)                            │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │            C++ Implementation                           │    │
+│  │  - LLMPipeline class                                    │    │
+│  │  - Model loading & inference                            │    │
+│  │  - Memory management                                    │    │
+│  │  - Device optimization (CPU/GPU/NPU)                    │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                │ Inference Calls
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   OpenVINO Runtime                              │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              Model Execution                            │    │
+│  │  - CPU/GPU/NPU inference                                │    │
+│  │  - Model optimization                                   │    │
+│  │  - Hardware acceleration                                │    │
+│  │  - Intel AIPC optimizations                             │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-## Key Features
+**Key Architecture Points:**
 
-- **Memory Safe**: SafeHandle pattern for automatic resource cleanup
-- **Async/Await**: Full async support with cancellation tokens
-- **Streaming**: Real-time token generation with `IAsyncEnumerable<string>`
-- **Fluent API**: Chainable configuration methods
-- **Error Handling**: Comprehensive exception handling and device fallbacks
-- **Performance**: Optimized for both throughput and latency
+1. **C API Bridge**: The C API (`openvino_genai_c.dll`) provides a stable ABI between managed .NET and unmanaged C++
+2. **P/Invoke Layer**: Uses `DllImport` attributes to call native functions with proper marshaling
+3. **Memory Safety**: SafeHandles and IDisposable patterns ensure proper cleanup of unmanaged resources
+4. **Streaming Support**: Callback mechanisms for streaming inference results back to .NET
+5. **Device Flexibility**: Supports CPU, GPU, and NPU devices through the same interface
 
-## Layer Details
-
-### Your Application Layer
-The top layer where you build your applications using the high-level APIs provided by OpenVINO.NET.GenAI.
-
-### OpenVINO.NET.GenAI
-This is the main user-facing library that provides:
-- **LLMPipeline**: High-level API for text generation
-- **GenerationConfig**: Fluent configuration for controlling generation parameters
-- **ChatSession**: Manages conversation state and history
-- **Streaming Support**: Real-time token generation through `IAsyncEnumerable<string>`
-
-### OpenVINO.NET.Core
-The core library that handles:
-- Model loading and management
-- OpenVINO inference operations
-- Device management and selection
-
-### OpenVINO.NET.Native
-The native interop layer that provides:
-- P/Invoke declarations for calling native code
-- SafeHandle implementations for automatic resource management
-- MSBuild targets for deploying native DLLs
-
-### OpenVINO GenAI C API
-The underlying native OpenVINO GenAI runtime that performs the actual inference operations.
-
-## Design Principles
-
-1. **Safety First**: All native resources are managed through SafeHandle patterns
-2. **Async by Design**: Full async/await support throughout the API
-3. **Streaming Support**: Real-time token generation for responsive UIs
-4. **Fluent Configuration**: Chainable methods for easy configuration
-5. **Error Resilience**: Comprehensive error handling and device fallbacks
+This architecture allows your .NET applications to leverage OpenVINO's high-performance inference capabilities while maintaining the safety and convenience of managed code.
