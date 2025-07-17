@@ -26,6 +26,9 @@ on:
         default: true
         type: boolean
 
+env:
+  OPENVINO_VERSION: "2025.2.0.0"
+
 jobs:
   benchmark:
     name: Performance Benchmark
@@ -77,83 +80,73 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
 
-    - name: Download OpenVINO Runtime (Windows)
+    """    - name: Cache OpenVINO Runtime (Windows)
       if: matrix.os == 'windows-latest'
+      id: cache-openvino-windows
+      uses: actions/cache@v4
+      with:
+        path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
+        key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
+
+    - name: Download OpenVINO Runtime (Windows)
+      if: matrix.os == 'windows-latest' && steps.cache-openvino-windows.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         Write-Host "Downloading OpenVINO GenAI Runtime for Windows..."
-        
-        # Try multiple potential URLs for robustness
+        $outputPath = "build/native"
+        New-Item -ItemType Directory -Force -Path $outputPath
         $urls = @(
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_2025.2.0.0_x86_64.zip",
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip",
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip"
         )
-        
         $downloaded = $false
         $output = "openvino_genai_runtime.zip"
-        
         foreach ($url in $urls) {
           Write-Host "Trying: $url"
           try {
             Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
-            
-            # Verify the downloaded file is a valid ZIP
-            if (Test-Path $output -PathType Leaf) {
-              $fileInfo = Get-Item $output
-              if ($fileInfo.Length -gt 1MB) {
-                Write-Host "✓ Successfully downloaded from: $url"
-                $downloaded = $true
-                break
-              } else {
-                Write-Host "✗ Downloaded file too small: $($fileInfo.Length) bytes"
-                Remove-Item $output -ErrorAction SilentlyContinue
-              }
+            if ((Get-Item $output).Length -gt 1MB) {
+              Write-Host "Successfully downloaded from $url"
+              $downloaded = $true
+              break
+            } else {
+              Write-Host "Downloaded file is too small, trying next URL..."
+              Remove-Item $output
             }
           } catch {
-            Write-Host "✗ Failed to download from: $url - $($_.Exception.Message)"
-            Remove-Item $output -ErrorAction SilentlyContinue
+            Write-Host "Failed to download from $url, trying next URL..."
           }
         }
-        
         if (-not $downloaded) {
-          Write-Host "❌ Failed to download OpenVINO runtime from any URL"
+          Write-Host "Failed to download OpenVINO runtime from any URL."
           exit 1
         }
-        
-        Write-Host "Extracting runtime..."
-        Expand-Archive -Path $output -DestinationPath "temp_extract" -Force
-        
-        # Find the extracted directory (handle different naming conventions)
-        $extractedDirs = Get-ChildItem -Path "temp_extract" -Directory | Where-Object { $_.Name -like "openvino_genai*" }
-        
-        if ($extractedDirs.Count -eq 0) {
-          Write-Host "❌ Could not find extracted OpenVINO directory"
-          Get-ChildItem -Path "temp_extract" | Format-Table
-          exit 1
-        }
-        
-        $extractedDir = $extractedDirs[0].FullName
-        Write-Host "Found extracted directory: $($extractedDirs[0].Name)"
-        
-        # Create target directory and copy files
-        New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
-        
-        # Try different potential library paths
-        if (Test-Path "$extractedDir/runtime/bin") {
-          Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
-        } elseif (Test-Path "$extractedDir/bin") {
-          Copy-Item -Path "$extractedDir/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
-        } else {
-          Write-Host "❌ Could not find binary directory in extracted folder"
-          Get-ChildItem -Path $extractedDir | Format-Table
-          exit 1
-        }
-        
-        Remove-Item -Path $output, "temp_extract" -Recurse -Force
-        Write-Host "✓ OpenVINO runtime setup completed"
+        Expand-Archive -Path $output -DestinationPath $outputPath -Force
+        Remove-Item $output
+        Write-Host "OpenVINO Runtime downloaded successfully"
+
+    - name: Setup OpenVINO DLLs (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        $runtimePath = "build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64/runtime"
+        $targetPath = "build/native/runtimes/win-x64/native"
+        New-Item -ItemType Directory -Force -Path $targetPath
+        Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
+        Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
+        Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
+""
 
     - name: Download OpenVINO Runtime (Linux)
       if: matrix.os == 'ubuntu-latest'
+      id: cache-openvino-linux
+      uses: actions/cache@v4
+      with:
+        path: build/native/runtimes/linux-x64/native
+        key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
+
+    - name: Download OpenVINO Runtime (Linux)
+      if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
       run: |
         echo "Downloading OpenVINO GenAI Runtime for Linux..."
         
