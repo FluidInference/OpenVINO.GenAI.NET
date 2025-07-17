@@ -266,6 +266,7 @@ jobs:
         )
         
         Write-Host "Copying OpenVINO DLLs to application output directories..."
+        $failed = $false
         
         foreach ($targetPath in $targetPaths) {
           if (-not (Test-Path $targetPath)) {
@@ -273,15 +274,41 @@ jobs:
             Write-Host "Created directory: $targetPath"
           }
           
+          # Copy from nested directory structure to flat structure
           Copy-Item -Path "$sourceRuntimePath/*" -Destination $targetPath -Recurse -Force
           Write-Host "✓ Copied DLLs to: $targetPath"
+          
+          # Flatten the nested directory structure - copy DLLs from intel64/Release to target directory
+          $nestedPaths = @(
+            "$targetPath/intel64/Release",
+            "$targetPath/intel64/Debug"
+          )
+          
+          foreach ($nestedPath in $nestedPaths) {
+            if (Test-Path $nestedPath) {
+              Write-Host "  Flattening DLLs from: $nestedPath"
+              Copy-Item -Path "$nestedPath/*" -Destination $targetPath -Force
+            }
+          }
+          
+          # Remove the nested directories after flattening
+          if (Test-Path "$targetPath/intel64") {
+            Remove-Item -Path "$targetPath/intel64" -Recurse -Force
+            Write-Host "  Removed nested intel64 directory"
+          }
           
           # Verify the copy
           if (Test-Path "$targetPath/openvino_genai_c.dll") {
             Write-Host "  ✓ openvino_genai_c.dll verified in $targetPath"
           } else {
             Write-Host "  ✗ openvino_genai_c.dll NOT found in $targetPath"
+            $failed = $true
           }
+        }
+
+        if ($failed) {
+          Write-Host "❌ Required DLL(s) not found in one or more target directories. Failing step."
+          exit 1
         }
 
     - name: Run Performance Benchmark
