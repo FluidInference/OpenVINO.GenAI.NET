@@ -58,7 +58,7 @@ internal static class NativeLibraryLoader
     {
         var assemblyLocation = Assembly.GetExecutingAssembly().Location;
         var assemblyDir = Path.GetDirectoryName(assemblyLocation);
-        
+
         if (string.IsNullOrEmpty(assemblyDir))
             throw new InvalidOperationException("Unable to determine assembly directory");
 
@@ -66,10 +66,10 @@ internal static class NativeLibraryLoader
         AddSearchPath(assemblyDir); // Assembly directory (main output)
         AddSearchPath(Path.Combine(assemblyDir, "runtimes", "win-x64", "native")); // Standard runtime path
         AddSearchPath(Path.Combine(assemblyDir, "native")); // Alternative native path
-        
+
         // Set up DLL import resolver for precise control
         NativeLibrary.SetDllImportResolver(typeof(GenAINativeMethods).Assembly, WindowsDllImportResolver);
-        
+
         // Try to preload critical dependencies
         PreloadWindowsDependencies();
     }
@@ -78,7 +78,7 @@ internal static class NativeLibraryLoader
     {
         var assemblyLocation = Assembly.GetExecutingAssembly().Location;
         var assemblyDir = Path.GetDirectoryName(assemblyLocation);
-        
+
         if (string.IsNullOrEmpty(assemblyDir))
             throw new InvalidOperationException("Unable to determine assembly directory");
 
@@ -86,7 +86,7 @@ internal static class NativeLibraryLoader
         AddSearchPath(assemblyDir);
         AddSearchPath(Path.Combine(assemblyDir, "runtimes", "linux-x64", "native"));
         AddSearchPath(Path.Combine(assemblyDir, "native"));
-        
+
         // Set up DLL import resolver
         NativeLibrary.SetDllImportResolver(typeof(GenAINativeMethods).Assembly, LinuxDllImportResolver);
     }
@@ -118,7 +118,7 @@ internal static class NativeLibraryLoader
         {
             // Try different naming conventions for Linux
             var candidates = new[] { "libopenvino_genai_c.so", "openvino_genai_c.so" };
-            
+
             foreach (var candidate in candidates)
             {
                 var handle = LoadLibraryFromSearchPaths(candidate);
@@ -134,7 +134,7 @@ internal static class NativeLibraryLoader
     private static IntPtr LoadLibraryFromSearchPaths(string libraryName)
     {
         var searchPaths = _searchPaths.ToList();
-        
+
         // Also try the current directory and standard locations
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -176,7 +176,7 @@ internal static class NativeLibraryLoader
         var errorMessage = $"Failed to load native library '{libraryName}'. " +
                           $"Searched paths: {string.Join(", ", searchPaths)}. " +
                           $"Available files: {string.Join(", ", availableFiles.Distinct())}";
-        
+
         throw new DllNotFoundException(errorMessage);
     }
 

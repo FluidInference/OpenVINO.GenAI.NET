@@ -79,7 +79,7 @@ class Program
         {
             Console.WriteLine($"Error: {ex.Message}");
             Console.WriteLine("Make sure you have the required OpenVINO runtime installed.");
-            
+
             // Provide detailed diagnostics for DLL loading issues
             if (ex is DllNotFoundException || ex.Message.Contains("openvino_genai_c"))
             {
@@ -94,7 +94,7 @@ class Program
                 {
                     Console.WriteLine($"Failed to get diagnostic info: {diagnosticEx.Message}");
                 }
-                
+
                 Console.WriteLine();
                 Console.WriteLine("=== Current Directory Files ===");
                 try
@@ -120,7 +120,7 @@ class Program
                 {
                     Console.WriteLine($"Failed to list directory contents: {dirEx.Message}");
                 }
-                
+
                 Console.WriteLine();
                 Console.WriteLine("=== Runtime Directory Files ===");
                 try
@@ -154,7 +154,7 @@ class Program
                     Console.WriteLine($"Failed to list runtime directory contents: {runtimeEx.Message}");
                 }
             }
-            
+
             Environment.Exit(1);
         }
     }

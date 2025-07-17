@@ -15,4 +15,4 @@ public static class DiagnosticInfo
     {
         return NativeLibraryLoader.GetDiagnosticInfo();
     }
-} 
+}
