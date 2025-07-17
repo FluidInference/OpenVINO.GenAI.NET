@@ -91,50 +91,77 @@ jobs:
       shell: pwsh
       run: |
         Write-Host "Downloading OpenVINO GenAI Runtime for Windows..."
-        $outputPath = "build/native"
-        New-Item -ItemType Directory -Force -Path $outputPath
+        
+        # Try multiple potential URLs for robustness
         $urls = @(
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip",
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip"
         )
+        
         $downloaded = $false
         $output = "openvino_genai_runtime.zip"
+        
         foreach ($url in $urls) {
           Write-Host "Trying: $url"
           try {
             Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
-            if ((Get-Item $output).Length -gt 1MB) {
-              Write-Host "Successfully downloaded from $url"
-              $downloaded = $true
-              break
-            } else {
-              Write-Host "Downloaded file is too small, trying next URL..."
-              Remove-Item $output
+            
+            # Verify the downloaded file is a valid ZIP
+            if (Test-Path $output -PathType Leaf) {
+              $fileInfo = Get-Item $output
+              if ($fileInfo.Length -gt 1MB) {
+                Write-Host "✓ Successfully downloaded from: $url"
+                $downloaded = $true
+                break
+              } else {
+                Write-Host "✗ Downloaded file too small: $($fileInfo.Length) bytes"
+                Remove-Item $output -ErrorAction SilentlyContinue
+              }
             }
           } catch {
-            Write-Host "Failed to download from $url, trying next URL..."
+            Write-Host "✗ Failed to download from: $url - $($_.Exception.Message)"
+            Remove-Item $output -ErrorAction SilentlyContinue
           }
         }
+        
         if (-not $downloaded) {
-          Write-Host "Failed to download OpenVINO runtime from any URL."
+          Write-Host "❌ Failed to download OpenVINO runtime from any URL"
           exit 1
         }
-        Expand-Archive -Path $output -DestinationPath $outputPath -Force
-        Remove-Item $output
-        Write-Host "OpenVINO Runtime downloaded successfully"
+        
+        Write-Host "Extracting runtime..."
+        Expand-Archive -Path $output -DestinationPath "temp_extract" -Force
+        
+        # Find the extracted directory (handle different naming conventions)
+        $extractedDirs = Get-ChildItem -Path "temp_extract" -Directory | Where-Object { $_.Name -like "openvino_genai*" }
+        
+        if ($extractedDirs.Count -eq 0) {
+          Write-Host "❌ Could not find extracted OpenVINO directory"
+          Get-ChildItem -Path "temp_extract" | Format-Table
+          exit 1
+        }
+        
+        $extractedDir = $extractedDirs[0].FullName
+        Write-Host "Found extracted directory: $($extractedDirs[0].Name)"
+        
+        # Create target directory and copy files
+        New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
+        
+        # Try different potential library paths
+        if (Test-Path "$extractedDir/runtime/bin") {
+          Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
+        } elseif (Test-Path "$extractedDir/bin") {
+          Copy-Item -Path "$extractedDir/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
+        } else {
+          Write-Host "❌ Could not find binary directory in extracted folder"
+          Get-ChildItem -Path $extractedDir | Format-Table
+          exit 1
+        }
+        
+        Remove-Item -Path $output, "temp_extract" -Recurse -Force
+        Write-Host "✓ OpenVINO runtime setup completed"
 
-    - name: Setup OpenVINO DLLs (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: pwsh
-      run: |
-        $runtimePath = "build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64/runtime"
-        $targetPath = "build/native/runtimes/win-x64/native"
-        New-Item -ItemType Directory -Force -Path $targetPath
-        Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
-        Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
-        Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
-
-    - name: Download OpenVINO Runtime (Linux)
+    - name: Cache OpenVINO Runtime (Linux)
       if: matrix.os == 'ubuntu-latest'
       id: cache-openvino-linux
       uses: actions/cache@v4
@@ -146,18 +173,20 @@ jobs:
       if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
       run: |
         echo "Downloading OpenVINO GenAI Runtime for Linux..."
-        outputPath="build/native"
-        mkdir -p $outputPath
+        
+        # Try multiple potential URLs for robustness
         urls=(
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_runtime_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
         )
+        
         downloaded=false
         for url in "${urls[@]}"; do
           echo "Trying: $url"
           if wget -q --user-agent="OpenVINO.NET/1.0" -O openvino_genai_runtime.tar.gz "$url"; then
+            # Verify the downloaded file is valid
             if file openvino_genai_runtime.tar.gz | grep -q "gzip compressed"; then
               echo "✓ Successfully downloaded from: $url"
               downloaded=true
@@ -170,6 +199,7 @@ jobs:
             echo "✗ Failed to download from: $url"
           fi
         done
+        
         if [ "$downloaded" = false ]; then
           echo "❌ Failed to download OpenVINO runtime from any URL"
           exit 1
@@ -257,10 +287,11 @@ jobs:
       run: |
         # Install system monitoring tools
         sudo apt-get update
-        sudo apt-get install -y htop sysstat
+        sudo apt-get install -y htop sysstat bc
         echo "✓ Memory monitoring tools installed"
 
-    - name: Run Performance Benchmark
+    - name: Run Performance Benchmark (Windows)
+      if: matrix.os == 'windows-latest'
       working-directory: ./samples/QuickDemo
       shell: pwsh
       run: |
@@ -411,8 +442,130 @@ jobs:
           "BEST_TPS=$($bestDevice.AverageTokensPerSecond.ToString('F2'))" | Out-File -FilePath $env:GITHUB_ENV -Append
         }
 
-    - name: Compare with Baseline
-      if: inputs.compare_with_baseline
+    - name: Run Performance Benchmark (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      working-directory: ./samples/QuickDemo
+      shell: bash
+      run: |
+        devices="${{ inputs.devices || 'CPU,GPU,NPU' }}"
+        iterations="${{ inputs.iterations || 3 }}"
+        timestamp=$(date +%Y%m%d-%H%M%S)
+        runtime="${{ matrix.runtime }}"
+        
+        echo "Performance Benchmark - $timestamp"
+        echo "Devices: $devices"
+        echo "Iterations per device: $iterations"
+        echo "Platform: $runtime"
+        echo ""
+        
+        # Create results file
+        result_file="benchmark-results-$runtime-$timestamp.json"
+        summary_file="benchmark-summary-$runtime-$timestamp.txt"
+        
+        echo "Performance Benchmark Summary - $runtime" > "$summary_file"
+        echo "Generated: $timestamp" >> "$summary_file"
+        echo "" >> "$summary_file"
+        echo "Device       | Status | Avg TPS | Avg Latency | Max Memory | Iterations" >> "$summary_file"
+        echo "------------ | ------ | ------- | ----------- | ---------- | ----------" >> "$summary_file"
+        
+        # Initialize JSON results
+        echo "[" > "$result_file"
+        first_device=true
+        
+        # Convert comma-separated devices to array
+        IFS=',' read -ra device_array <<< "$devices"
+        
+        for device in "${device_array[@]}"; do
+          device=$(echo "$device" | xargs)  # trim whitespace
+          echo "Benchmarking device: $device"
+          echo "================================"
+          
+          success=false
+          total_tps=0
+          total_latency=0
+          successful_iterations=0
+          
+          for ((i=1; i<=iterations; i++)); do
+            echo "Iteration $i/$iterations..."
+            
+            start_time=$(date +%s%3N)
+            if output=$(dotnet run --configuration Release -- --device "$device" 2>&1); then
+              end_time=$(date +%s%3N)
+              total_time=$((end_time - start_time))
+              
+              # Extract performance metrics
+              if [[ $output =~ Performance:[[:space:]]+([0-9]+\.[0-9]+)[[:space:]]+tokens/sec ]]; then
+                tps="${BASH_REMATCH[1]}"
+                total_tps=$(echo "$total_tps + $tps" | bc -l)
+                ((successful_iterations++))
+              else
+                tps="0"
+              fi
+              
+              if [[ $output =~ First\ token:[[:space:]]+([0-9]+)ms ]]; then
+                latency="${BASH_REMATCH[1]}"
+                total_latency=$((total_latency + latency))
+              else
+                latency="0"
+              fi
+              
+              echo "  ✓ TPS: $tps, Latency: ${latency}ms"
+              success=true
+            else
+              echo "  ✗ Failed: $output"
+              break
+            fi
+          done
+          
+          # Calculate averages
+          if [[ $success == true && $successful_iterations -gt 0 ]]; then
+            avg_tps=$(echo "scale=2; $total_tps / $successful_iterations" | bc -l)
+            avg_latency=$((total_latency / successful_iterations))
+            status="✓"
+          else
+            avg_tps="N/A"
+            avg_latency="N/A"
+            status="✗"
+          fi
+          
+          # Add to summary
+          printf "%-12s | %-6s | %-7s | %-11s | %-10s | %s\n" \
+            "$device" "$status" "$avg_tps" "${avg_latency}ms" "N/A" "$successful_iterations" >> "$summary_file"
+          
+          # Add to JSON (simplified)
+          if [[ $first_device == false ]]; then
+            echo "," >> "$result_file"
+          fi
+          first_device=false
+          
+          cat >> "$result_file" << EOF
+  {
+    "Device": "$device",
+    "Platform": "$runtime",
+    "Timestamp": "$timestamp",
+    "Success": $success,
+    "AverageTokensPerSecond": ${avg_tps:-0},
+    "AverageFirstTokenLatencyMs": ${avg_latency:-0},
+    "Iterations": []
+  }
+EOF
+          
+          echo ""
+        done
+        
+        echo "]" >> "$result_file"
+        
+        echo "Benchmark Results Summary:"
+        cat "$summary_file"
+        
+        # Set environment variables for comparison step
+        if [[ $success == true ]]; then
+          echo "BEST_DEVICE=$device" >> $GITHUB_ENV
+          echo "BEST_TPS=$avg_tps" >> $GITHUB_ENV
+        fi
+
+    - name: Compare with Baseline (Windows)
+      if: inputs.compare_with_baseline && matrix.os == 'windows-latest'
       shell: pwsh
       run: |
         $baselineDir = "baseline-performance"
@@ -476,6 +629,24 @@ jobs:
           }
         }
 
+    - name: Compare with Baseline (Linux)
+      if: inputs.compare_with_baseline && matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        baseline_dir="baseline-performance"
+        current_results="benchmark-results-${{ matrix.runtime }}-*.json"
+        
+        if [ ! -d "$baseline_dir" ]; then
+          mkdir -p "$baseline_dir"
+          echo "No baseline data found. Current results will be used as baseline."
+          cp $current_results "$baseline_dir/"
+        else
+          echo "Comparing with baseline performance..."
+          echo "Note: Detailed comparison not implemented for Linux version"
+          # For now, just update the baseline
+          cp $current_results "$baseline_dir/"
+        fi
+
     - name: Upload Benchmark Results
       uses: actions/upload-artifact@v4
       with:
@@ -484,7 +655,8 @@ jobs:
           ./samples/QuickDemo/benchmark-results-*.json
           ./samples/QuickDemo/benchmark-summary-*.txt
 
-    - name: Create Performance Summary
+    - name: Create Performance Summary (Windows)
+      if: matrix.os == 'windows-latest'
       shell: pwsh
       run: |
         $summaryFile = Get-ChildItem "./samples/QuickDemo/benchmark-summary-${{ matrix.runtime }}-*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -502,6 +674,26 @@ jobs:
           Write-Host ""
           Get-Content performance-summary.md
         }
+
+    - name: Create Performance Summary (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        summary_file=$(ls -t ./samples/QuickDemo/benchmark-summary-${{ matrix.runtime }}-*.txt 2>/dev/null | head -1)
+        
+        if [ -n "$summary_file" ]; then
+          echo "## Performance Benchmark Results (${{ matrix.runtime }})" > performance-summary.md
+          echo "" >> performance-summary.md
+          echo "**Best Device:** $BEST_DEVICE ($BEST_TPS TPS)" >> performance-summary.md
+          echo "" >> performance-summary.md
+          echo "### Detailed Results" >> performance-summary.md
+          echo '```' >> performance-summary.md
+          cat "$summary_file" >> performance-summary.md
+          echo '```' >> performance-summary.md
+          
+          echo ""
+          cat performance-summary.md
+        fi
 
     - name: Comment on PR
       if: github.event_name == 'pull_request'

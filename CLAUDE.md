@@ -6,7 +6,7 @@
 Create a comprehensive C# wrapper for OpenVINO and OpenVINO GenAI C code to make it more usable directly in C# applications, compared to basic P/Invoke examples.
 
 ### Core Requirements
-- **Target Platform**: Windows x64, .NET 9.0+
+- **Target Platform**: Windows x64, .NET 8.0+
 - **OpenVINO Version**: OpenVINO GenAI 2025.2.0.0 (stable release with all needed C API changes)
 - **Modern C# Patterns**: Async/await, IAsyncEnumerable, SafeHandle resource management
 - **Simple Demo**: CLI with hardcoded values, device selection, and benchmark mode
@@ -71,9 +71,9 @@ dotnet run --project samples/QuickDemo -- --benchmark
 
 ## Common Issues and Solutions
 
-### .NET 9 Features
+### .NET 8 Features
 - **Modern C# Features**: Takes advantage of latest language features and performance improvements
-- **Enhanced Performance**: Benefits from .NET 9 runtime optimizations for better inference speed
+- **Enhanced Performance**: Benefits from .NET 8 runtime optimizations for better inference speed
 - **Native AOT Ready**: Can be compiled to native code for faster startup times
 
 ### Native Library Path

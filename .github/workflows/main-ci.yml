@@ -29,7 +29,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 8.0.x
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -99,14 +99,14 @@ jobs:
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
         uses: actions/cache@v4
         with:
-          path: Models/qwen3-0.6b-int4-ov
-          key: model-qwen3-0.6b-int4-ov-v1
+          path: Models/qwen3-0.6b-int4-ov-npu
+          key: model-qwen3-0.6b-int4-ov-npu-v1
 
       - name: Download INT4 model for testing
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
         shell: pwsh
         run: |
-          $modelPath = "Models/qwen3-0.6b-int4-ov"
+          $modelPath = "Models/qwen3-0.6b-int4-ov-npu"
           if (-not (Test-Path "$modelPath/openvino_model.xml")) {
             Write-Host "Downloading INT4 quantized model for inference testing..."
             New-Item -ItemType Directory -Force -Path $modelPath
@@ -125,7 +125,7 @@ jobs:
             )
             
             foreach ($file in $files) {
-              $url = "https://huggingface.co/bweng/qwen3-0.6b-int4-ov-npu/resolve/main/$file"
+              $url = "https://huggingface.co/FluidInference/qwen3-0.6b-int4-ov-npu/resolve/main/$file"
               $outputFile = "$modelPath/$file"
               Write-Host "Downloading $file..."
               Invoke-WebRequest -Uri $url -OutFile $outputFile -UseBasicParsing
@@ -144,7 +144,7 @@ jobs:
           Write-Host "Running QuickDemo with INT4 model on CPU..."
 
           # Set model path environment variable
-          $env:QUICKDEMO_MODEL_PATH = "Models/qwen3-0.6b-int4-ov"
+          $env:QUICKDEMO_MODEL_PATH = "Models/qwen3-0.6b-int4-ov-npu"
 
           # Run demo with CPU device
           dotnet run --project samples/QuickDemo --configuration Release -- --device CPU
