@@ -20,6 +20,8 @@ jobs:
   integration-test:
     name: Integration Test
     runs-on: ${{ matrix.os }}
+    env:
+      OPENVINO_VERSION: "2025.2.0.0"
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -58,99 +60,86 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
 
-    - name: Download OpenVINO Runtime (Windows)
+    - name: Cache OpenVINO Runtime (Windows)
       if: matrix.os == 'windows-latest'
+      id: cache-openvino-windows
+      uses: actions/cache@v4
+      with:
+        path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
+        key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
+
+    - name: Download OpenVINO Runtime (Windows)
+      if: matrix.os == 'windows-latest' && steps.cache-openvino-windows.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         Write-Host "Downloading OpenVINO GenAI Runtime for Windows..."
-        
-        # Try multiple potential URLs for robustness
+        $outputPath = "build/native"
+        New-Item -ItemType Directory -Force -Path $outputPath
         $urls = @(
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_2025.2.0.0_x86_64.zip",
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip",
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip"
         )
-        
         $downloaded = $false
         $output = "openvino_genai_runtime.zip"
-        
         foreach ($url in $urls) {
           Write-Host "Trying: $url"
           try {
             Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
-            
-            # Verify the downloaded file is a valid ZIP
-            if (Test-Path $output -PathType Leaf) {
-              $fileInfo = Get-Item $output
-              if ($fileInfo.Length -gt 1MB) {
-                Write-Host "✓ Successfully downloaded from: $url"
-                $downloaded = $true
-                break
-              } else {
-                Write-Host "✗ Downloaded file too small: $($fileInfo.Length) bytes"
-                Remove-Item $output -ErrorAction SilentlyContinue
-              }
+            if ((Get-Item $output).Length -gt 1MB) {
+              Write-Host "Successfully downloaded from $url"
+              $downloaded = $true
+              break
+            } else {
+              Write-Host "Downloaded file is too small, trying next URL..."
+              Remove-Item $output
             }
           } catch {
-            Write-Host "✗ Failed to download from: $url - $($_.Exception.Message)"
-            Remove-Item $output -ErrorAction SilentlyContinue
+            Write-Host "Failed to download from $url, trying next URL..."
           }
         }
-        
         if (-not $downloaded) {
-          Write-Host "❌ Failed to download OpenVINO runtime from any URL"
+          Write-Host "Failed to download OpenVINO runtime from any URL."
           exit 1
         }
-        
-        Write-Host "Extracting runtime..."
-        Expand-Archive -Path $output -DestinationPath "temp_extract" -Force
-        
-        # Find the extracted directory (handle different naming conventions)
-        $extractedDirs = Get-ChildItem -Path "temp_extract" -Directory | Where-Object { $_.Name -like "openvino_genai*" }
-        
-        if ($extractedDirs.Count -eq 0) {
-          Write-Host "❌ Could not find extracted OpenVINO directory"
-          Get-ChildItem -Path "temp_extract" | Format-Table
-          exit 1
-        }
-        
-        $extractedDir = $extractedDirs[0].FullName
-        Write-Host "Found extracted directory: $($extractedDirs[0].Name)"
-        
-        # Create target directory and copy files
-        New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
-        
-        # Try different potential library paths
-        if (Test-Path "$extractedDir/runtime/bin") {
-          Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
-        } elseif (Test-Path "$extractedDir/bin") {
-          Copy-Item -Path "$extractedDir/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
-        } else {
-          Write-Host "❌ Could not find binary directory in extracted folder"
-          Get-ChildItem -Path $extractedDir | Format-Table
-          exit 1
-        }
-        
-        Remove-Item -Path $output, "temp_extract" -Recurse -Force
-        Write-Host "✓ OpenVINO runtime setup completed"
+        Expand-Archive -Path $output -DestinationPath $outputPath -Force
+        Remove-Item $output
+        Write-Host "OpenVINO Runtime downloaded successfully"
+
+    - name: Setup OpenVINO DLLs (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        $runtimePath = "build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64/runtime"
+        $targetPath = "build/native/runtimes/win-x64/native"
+        New-Item -ItemType Directory -Force -Path $targetPath
+        Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
+        Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
+        Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
+
+    - name: Cache OpenVINO Runtime (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      id: cache-openvino-linux
+      uses: actions/cache@v4
+      with:
+        path: build/native/openvino_genai_linux_${{ env.OPENVINO_VERSION }}_x86_64
+        key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
 
     - name: Download OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
       run: |
         echo "Downloading OpenVINO GenAI Runtime for Linux..."
-        
-        # Try multiple potential URLs for robustness
+        outputPath="build/native"
+        mkdir -p "$outputPath"
         urls=(
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_runtime_ubuntu24_2025.2.0.0_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_runtime_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
         )
-        
         downloaded=false
         for url in "${urls[@]}"; do
           echo "Trying: $url"
           if wget -q --user-agent="OpenVINO.NET/1.0" -O openvino_genai_runtime.tar.gz "$url"; then
-            # Verify the downloaded file is valid
             if file openvino_genai_runtime.tar.gz | grep -q "gzip compressed"; then
               echo "✓ Successfully downloaded from: $url"
               downloaded=true
@@ -163,48 +152,22 @@ jobs:
             echo "✗ Failed to download from: $url"
           fi
         done
-        
         if [ "$downloaded" = false ]; then
           echo "❌ Failed to download OpenVINO runtime from any URL"
           exit 1
         fi
-        
-        echo "Extracting runtime..."
-        tar -xzf openvino_genai_runtime.tar.gz
-        
-        # Find the extracted directory (handle different naming conventions)
-        extracted_dir=""
-        for dir in openvino_genai_*; do
-          if [ -d "$dir" ]; then
-            extracted_dir="$dir"
-            break
-          fi
-        done
-        
-        if [ -z "$extracted_dir" ]; then
-          echo "❌ Could not find extracted OpenVINO directory"
-          ls -la
-          exit 1
-        fi
-        
-        echo "Found extracted directory: $extracted_dir"
-        
-        # Create target directory and copy files preserving symlinks
-        mkdir -p build/native/runtimes/linux-x64/native
-        
-        # Try different potential library paths
-        if [ -d "$extracted_dir/runtime/lib/intel64" ]; then
-          cp -a "$extracted_dir/runtime/lib/intel64/"* build/native/runtimes/linux-x64/native/
-        elif [ -d "$extracted_dir/lib" ]; then
-          cp -a "$extracted_dir/lib/"* build/native/runtimes/linux-x64/native/
-        else
-          echo "❌ Could not find library directory in $extracted_dir"
-          ls -la "$extracted_dir"
-          exit 1
-        fi
-        
-        rm -rf openvino_genai_runtime.tar.gz "$extracted_dir"
+        tar -xzf openvino_genai_runtime.tar.gz -C "$outputPath"
+        rm -f openvino_genai_runtime.tar.gz
         echo "✓ OpenVINO runtime setup completed"
+
+    - name: Setup OpenVINO Libraries (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        runtimePath="build/native/openvino_genai_linux_${{ env.OPENVINO_VERSION }}_x86_64/runtime"
+        targetPath="build/native/runtimes/linux-x64/native"
+        mkdir -p "$targetPath"
+        cp -a "$runtimePath/lib/intel64/"* "$targetPath/"
+        echo "Copied libraries to $targetPath"
 
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
@@ -249,9 +212,10 @@ jobs:
     - name: Run Integration Tests
       run: dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj --configuration Release --verbosity normal --filter "Category=Integration"
 
-    - name: Test Device Functionality
+    - name: Test Device Functionality (Windows)
+      if: matrix.os == 'windows-latest'
       working-directory: ./samples/QuickDemo
-      shell: ${{ matrix.shell }}
+      shell: pwsh
       run: |
         $devices = "${{ inputs.test_devices || 'CPU,GPU,NPU' }}" -split ','
         $results = @()
@@ -302,6 +266,49 @@ jobs:
         Write-Host "Device Test Summary:"
         $results | ForEach-Object { Write-Host "  $_" }
 
+    - name: Test Device Functionality (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      working-directory: ./samples/QuickDemo
+      shell: bash
+      run: |
+        IFS=',' read -ra devices <<< "${{ inputs.test_devices || 'CPU,GPU,NPU' }}"
+        results=()
+        
+        for device in "${devices[@]}"; do
+          device=$(echo "$device" | xargs)  # trim whitespace
+          echo "Testing device: $device"
+          
+          if output=$(dotnet run --configuration Release -- --device "$device" 2>&1); then
+            echo "✓ $device: SUCCESS"
+            results+=("$device=SUCCESS")
+            
+            # Extract performance metrics from output
+            if [[ $output =~ Performance:[[:space:]]+([0-9]+\.[0-9]+)[[:space:]]+tokens/sec ]]; then
+              tps="${BASH_REMATCH[1]}"
+              echo "  Tokens/sec: $tps"
+              results+=("${device}_TPS=$tps")
+            fi
+            
+            if [[ $output =~ First\ token:[[:space:]]+([0-9]+)ms ]]; then
+              latency="${BASH_REMATCH[1]}"
+              echo "  First token latency: ${latency}ms"
+              results+=("${device}_LATENCY=$latency")
+            fi
+          else
+            echo "✗ $device: FAILED"
+            results+=("$device=FAILED")
+            echo "Error output: $output"
+          fi
+          
+          echo ""
+        done
+        
+        # Save results to file for artifact upload
+        printf '%s\n' "${results[@]}" > "device-test-results-${{ matrix.runtime }}.txt"
+        
+        echo "Device Test Summary:"
+        printf '  %s\n' "${results[@]}"
+
     - name: Run Benchmark Test
       working-directory: ./samples/QuickDemo
       run: dotnet run --configuration Release -- --benchmark
@@ -316,9 +323,9 @@ jobs:
           ./samples/QuickDemo/device-test-results-*.txt
           ./samples/QuickDemo/benchmark-results-*.json
 
-    - name: Create Test Summary
-      if: always()
-      shell: ${{ matrix.shell }}
+    - name: Create Test Summary (Windows)
+      if: always() && matrix.os == 'windows-latest'
+      shell: pwsh
       run: |
         Write-Host "## Integration Test Results (${{ matrix.runtime }})" > test-summary.md
         Write-Host "" >> test-summary.md
@@ -362,6 +369,61 @@ jobs:
         
         Write-Host ""
         Get-Content test-summary.md
+
+    - name: Create Test Summary (Linux)
+      if: always() && matrix.os == 'ubuntu-latest'
+      shell: bash
+      run: |
+        echo "## Integration Test Results (${{ matrix.runtime }})" > test-summary.md
+        echo "" >> test-summary.md
+        
+        if [ -f "./samples/QuickDemo/device-test-results-${{ matrix.runtime }}.txt" ]; then
+          echo "### Device Test Results" >> test-summary.md
+          echo "" >> test-summary.md
+          echo "| Device | Status | TPS | Latency |" >> test-summary.md
+          echo "|--------|--------|-----|---------|" >> test-summary.md
+          
+          declare -A deviceData
+          
+          while IFS= read -r line; do
+            if [[ $line == *"="* ]]; then
+              key="${line%%=*}"
+              value="${line#*=}"
+              
+              if [[ $key == *"_TPS" ]]; then
+                device="${key%_TPS}"
+                deviceData["${device}_TPS"]="$value"
+              elif [[ $key == *"_LATENCY" ]]; then
+                device="${key%_LATENCY}"
+                deviceData["${device}_LATENCY"]="${value}ms"
+              else
+                deviceData["${key}_STATUS"]="$value"
+              fi
+            fi
+          done < "./samples/QuickDemo/device-test-results-${{ matrix.runtime }}.txt"
+          
+          # Extract unique devices
+          devices=()
+          for key in "${!deviceData[@]}"; do
+            if [[ $key == *"_STATUS" ]]; then
+              device="${key%_STATUS}"
+              devices+=("$device")
+            fi
+          done
+          
+          # Sort and deduplicate devices
+          IFS=$'\n' devices=($(sort -u <<< "${devices[*]}"))
+          
+          for device in "${devices[@]}"; do
+            status="${deviceData[${device}_STATUS]:-UNKNOWN}"
+            tps="${deviceData[${device}_TPS]:-N/A}"
+            latency="${deviceData[${device}_LATENCY]:-N/A}"
+            echo "| $device | $status | $tps | $latency |" >> test-summary.md
+          done
+        fi
+        
+        echo ""
+        cat test-summary.md
         
     - name: Comment on PR
       if: github.event_name == 'pull_request'

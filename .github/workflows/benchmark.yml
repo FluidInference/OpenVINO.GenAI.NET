@@ -39,10 +39,8 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
-            shell: bash
           - os: windows-latest
             runtime: win-x64
-            shell: pwsh
 
     steps:
     - uses: actions/checkout@v4
@@ -80,7 +78,7 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
 
-    """    - name: Cache OpenVINO Runtime (Windows)
+    - name: Cache OpenVINO Runtime (Windows)
       if: matrix.os == 'windows-latest'
       id: cache-openvino-windows
       uses: actions/cache@v4
@@ -135,7 +133,6 @@ jobs:
         Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
         Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
         Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
-""
 
     - name: Download OpenVINO Runtime (Linux)
       if: matrix.os == 'ubuntu-latest'
@@ -143,14 +140,6 @@ jobs:
       uses: actions/cache@v4
       with:
         path: build/native/runtimes/linux-x64/native
-        key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
-
-    - name: Download OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      id: cache-openvino-linux
-      uses: actions/cache@v4
-      with:
-        path: build/native/openvino_genai_linux_${{ env.OPENVINO_VERSION }}_x86_64
         key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
 
     - name: Download OpenVINO Runtime (Linux)
@@ -248,7 +237,7 @@ jobs:
 
     - name: Run Performance Benchmark
       working-directory: ./samples/QuickDemo
-      shell: ${{ matrix.shell }}
+      shell: pwsh
       run: |
         $devices = "${{ inputs.devices || 'CPU,GPU,NPU' }}" -split ','
         $iterations = [int]"${{ inputs.iterations || 3 }}"
@@ -399,7 +388,7 @@ jobs:
 
     - name: Compare with Baseline
       if: inputs.compare_with_baseline
-      shell: ${{ matrix.shell }}
+      shell: pwsh
       run: |
         $baselineDir = "baseline-performance"
         $currentResults = "benchmark-results-${{ matrix.runtime }}-*.json"
@@ -471,7 +460,7 @@ jobs:
           ./samples/QuickDemo/benchmark-summary-*.txt
 
     - name: Create Performance Summary
-      shell: ${{ matrix.shell }}
+      shell: pwsh
       run: |
         $summaryFile = Get-ChildItem "./samples/QuickDemo/benchmark-summary-${{ matrix.runtime }}-*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         
