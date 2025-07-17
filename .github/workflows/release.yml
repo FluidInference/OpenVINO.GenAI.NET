@@ -1,0 +1,309 @@
+name: Release and Publish NuGet
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Select release tag to publish"
+        required: true
+        type: string
+        default: "latest"
+      force_publish:
+        description: "Force publish even if packages already exist"
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: "Dry run - build packages but don't publish"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  OPENVINO_VERSION: "2025.2.0.0"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  get-release-info:
+    name: Get Release Information
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.release-info.outputs.tag_name }}
+      release_name: ${{ steps.release-info.outputs.release_name }}
+      is_prerelease: ${{ steps.release-info.outputs.is_prerelease }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get release information
+        id: release-info
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            # Triggered by release event
+            echo "tag_name=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            echo "release_name=${{ github.event.release.name }}" >> $GITHUB_OUTPUT
+            echo "is_prerelease=${{ github.event.release.prerelease }}" >> $GITHUB_OUTPUT
+          else
+            # Manual workflow dispatch
+            TAG="${{ github.event.inputs.release_tag }}"
+            if [ "$TAG" = "latest" ]; then
+              # Get the latest release
+              TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
+              if [ "$TAG" = "null" ] || [ -z "$TAG" ]; then
+                echo "No releases found"
+                exit 1
+              fi
+            fi
+            
+            # Get release details
+            RELEASE_INFO=$(gh release view "$TAG" --json name,isPrerelease)
+            RELEASE_NAME=$(echo "$RELEASE_INFO" | jq -r '.name')
+            IS_PRERELEASE=$(echo "$RELEASE_INFO" | jq -r '.isPrerelease')
+            
+            echo "tag_name=$TAG" >> $GITHUB_OUTPUT
+            echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+            echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Selected release: $TAG ($RELEASE_NAME)"
+          echo "Is prerelease: $IS_PRERELEASE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-publish:
+    name: Build and Publish NuGet Packages
+    needs: get-release-info
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.get-release-info.outputs.tag_name }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Cache OpenVINO Runtime
+        id: cache-openvino
+        uses: actions/cache@v4
+        with:
+          path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
+          key: openvino-runtime-${{ env.OPENVINO_VERSION }}
+
+      - name: Download OpenVINO Runtime
+        if: steps.cache-openvino.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "Downloading OpenVINO GenAI Runtime $env:OPENVINO_VERSION..."
+          $outputPath = "build/native"
+          New-Item -ItemType Directory -Force -Path $outputPath
+
+          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/${env:OPENVINO_VERSION}/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
+          $zipPath = "$outputPath/openvino_genai.zip"
+
+          Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+          Expand-Archive -Path $zipPath -DestinationPath $outputPath -Force
+          Remove-Item $zipPath
+
+          Write-Host "OpenVINO Runtime downloaded successfully"
+
+      - name: Setup OpenVINO DLLs
+        shell: pwsh
+        run: |
+          $runtimePath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64/runtime"
+          $targetPath = "build/native/runtimes/win-x64/native"
+
+          New-Item -ItemType Directory -Force -Path $targetPath
+
+          # Copy Release DLLs
+          Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
+          Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
+
+          Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
+
+      - name: Restore dependencies
+        run: dotnet restore OpenVINO.NET.sln
+
+      - name: Build solution
+        run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore
+        env:
+          CI: true
+
+      - name: Run tests
+        run: |
+          dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj `
+            --configuration Release `
+            --no-build `
+            --verbosity normal `
+            --logger "trx;LogFileName=release-test-results.trx" `
+            --collect:"XPlat Code Coverage" `
+            --results-directory ./TestResults
+
+      - name: Set package version from release tag
+        shell: pwsh
+        run: |
+          $tag = "${{ needs.get-release-info.outputs.tag_name }}"
+          $version = $tag -replace '^v', ''  # Remove 'v' prefix if present
+          
+          Write-Host "Release tag: $tag"
+          Write-Host "Package version: $version"
+          
+          # Set environment variable for subsequent steps
+          echo "PACKAGE_VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Pack NuGet packages
+        run: |
+          $version = $env:PACKAGE_VERSION
+          if ([string]::IsNullOrEmpty($version)) {
+            Write-Host "ERROR: Package version not set"
+            exit 1
+          }
+          
+          Write-Host "Packing packages with version: $version"
+          
+          dotnet pack src/OpenVINO.NET.Core/OpenVINO.NET.Core.csproj --configuration Release --output ./nuget --no-build -p:PackageVersion=$version
+          dotnet pack src/OpenVINO.NET.GenAI/OpenVINO.NET.GenAI.csproj --configuration Release --output ./nuget --no-build -p:PackageVersion=$version
+          dotnet pack src/OpenVINO.NET.Native/OpenVINO.NET.Native.csproj --configuration Release --output ./nuget --no-build -p:PackageVersion=$version
+          
+          Write-Host "Generated packages:"
+          Get-ChildItem ./nuget -Filter *.nupkg | ForEach-Object { Write-Host "  $($_.Name)" }
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages-${{ needs.get-release-info.outputs.tag_name }}
+          path: nuget/*.nupkg
+
+      - name: Validate packages
+        shell: pwsh
+        run: |
+          Write-Host "Validating generated packages..."
+          $packages = Get-ChildItem ./nuget -Filter *.nupkg
+          
+          if ($packages.Count -eq 0) {
+            Write-Host "ERROR: No packages were generated"
+            exit 1
+          }
+          
+          foreach ($package in $packages) {
+            Write-Host "Validating $($package.Name)..."
+            dotnet nuget verify $package.FullName
+          }
+          
+          Write-Host "All packages validated successfully"
+
+      - name: Check if dry run
+        if: github.event.inputs.dry_run == 'true'
+        shell: pwsh
+        run: |
+          Write-Host "🏃‍♂️ DRY RUN MODE - Packages built but not published"
+          Write-Host "Generated packages:"
+          Get-ChildItem ./nuget -Filter *.nupkg | ForEach-Object { 
+            Write-Host "  📦 $($_.Name) ($([math]::Round($_.Length / 1MB, 2)) MB)"
+          }
+
+      - name: Publish to NuGet.org
+        if: github.event.inputs.dry_run != 'true'
+        shell: pwsh
+        run: |
+          $apiKey = "${{ secrets.NUGET_API_KEY }}"
+          if ([string]::IsNullOrEmpty($apiKey)) {
+            Write-Host "ERROR: NUGET_API_KEY secret is not configured"
+            exit 1
+          }
+          
+          $forcePublish = "${{ github.event.inputs.force_publish }}" -eq "true"
+          $skipDuplicate = if ($forcePublish) { "" } else { "--skip-duplicate" }
+          
+          Write-Host "Publishing packages to NuGet.org..."
+          Write-Host "Force publish: $forcePublish"
+          
+          $packages = Get-ChildItem ./nuget -Filter *.nupkg
+          foreach ($package in $packages) {
+            Write-Host "Publishing $($package.Name)..."
+            try {
+              $pushArgs = @(
+                "nuget", "push", $package.FullName,
+                "--api-key", $apiKey,
+                "--source", "https://api.nuget.org/v3/index.json"
+              )
+              if (-not $forcePublish) {
+                $pushArgs += "--skip-duplicate"
+              }
+              
+              & dotnet $pushArgs
+              
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "✅ Successfully published $($package.Name)"
+              } else {
+                Write-Host "❌ Failed to publish $($package.Name)"
+                exit 1
+              }
+            }
+            catch {
+              Write-Host "❌ Error publishing $($package.Name): $_"
+              exit 1
+            }
+          }
+          
+          Write-Host "🎉 All packages published successfully!"
+
+      - name: Create release notes
+        shell: pwsh
+        run: |
+          $tag = "${{ needs.get-release-info.outputs.tag_name }}"
+          $version = $env:PACKAGE_VERSION
+          $isPrerelease = "${{ needs.get-release-info.outputs.is_prerelease }}" -eq "true"
+          $isDryRun = "${{ github.event.inputs.dry_run }}" -eq "true"
+          
+          $releaseType = if ($isPrerelease) { "Pre-release" } else { "Release" }
+          $publishStatus = if ($isDryRun) { "Built (Dry Run)" } else { "Published" }
+          
+          $notes = "## 📦 NuGet Packages $publishStatus`n`n"
+          $notes += "**$releaseType**: $tag (v$version)`n`n"
+          $notes += "### Packages:`n"
+          $notes += "- **OpenVINO.NET.Core** - Core OpenVINO functionality`n"
+          $notes += "- **OpenVINO.NET.GenAI** - GenAI features (LLM pipelines, streaming)`n"
+          $notes += "- **OpenVINO.NET.Native** - Native library management`n`n"
+          $notes += "### Installation:`n"
+          $notes += "``````bash`n"
+          $notes += "dotnet add package OpenVINO.NET.GenAI --version $version`n"
+          $notes += "``````n`n"
+          $notes += "Status: $publishStatus to NuGet.org ✅"
+          
+          Write-Host $notes
+          
+          # Save to file for artifact
+          $notes | Out-File -FilePath "release-notes.md" -Encoding UTF8
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes-${{ needs.get-release-info.outputs.tag_name }}
+          path: release-notes.md
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ needs.get-release-info.outputs.tag_name }}
+          path: TestResults/

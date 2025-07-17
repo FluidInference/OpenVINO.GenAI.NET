@@ -7,7 +7,7 @@ Create a comprehensive C# wrapper for OpenVINO and OpenVINO GenAI C code to make
 
 ### Core Requirements
 - **Target Platform**: Windows x64, .NET 9.0+
-- **OpenVINO Version**: OpenVINO GenAI 2025.2.0.0-rc4 (required for needed C API changes)
+- **OpenVINO Version**: OpenVINO GenAI 2025.2.0.0 (stable release with all needed C API changes)
 - **Modern C# Patterns**: Async/await, IAsyncEnumerable, SafeHandle resource management
 - **Simple Demo**: CLI with hardcoded values, device selection, and benchmark mode
 - **Automatic Setup**: Model download from HuggingFace, native DLL deployment

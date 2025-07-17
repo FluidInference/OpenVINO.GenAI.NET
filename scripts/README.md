@@ -10,11 +10,11 @@ Downloads and sets up the OpenVINO GenAI runtime for Windows x64. This script is
 
 **Usage:**
 ```powershell
-# Download default version (2025.2.0.0rc4)
+# Download default version (2025.2.0.0)
 .\download-openvino-runtime.ps1
 
 # Download specific version
-.\download-openvino-runtime.ps1 -Version "2025.2.0.0rc4" -OutputPath "custom/path"
+.\download-openvino-runtime.ps1 -Version "2025.2.0.0" -OutputPath "custom/path"
 ```
 
 **What it does:**

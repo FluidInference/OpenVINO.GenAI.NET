@@ -16,7 +16,7 @@ A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic 
 
 - .NET 9.0 or later
 - Windows x64
-- OpenVINO GenAI 2025.2.0.0-rc4 runtime
+- OpenVINO GenAI 2025.2.0.0 runtime
 
 ## Quick Start
 
@@ -120,7 +120,7 @@ await foreach (var token in pipeline.GenerateStreamAsync("Tell me a story", conf
 ┌─────────────────────────────────────────────────────────────┐
 │            OpenVINO GenAI C API                            │
 │  • Native OpenVINO GenAI runtime                           │
-│  • Version: 2025.2.0.0-rc4                                 │
+│  • Version: 2025.2.0.0                                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -140,7 +140,7 @@ await foreach (var token in pipeline.GenerateStreamAsync("Tell me a story", conf
 1. **Install .NET 9.0 SDK or later**
    - Download from: https://dotnet.microsoft.com/download
 
-2. **Install OpenVINO GenAI Runtime 2025.2.0.0-rc4**
+2. **Install OpenVINO GenAI Runtime 2025.2.0.0**
    - Download from: https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/
    - Extract to a directory in your PATH, or place DLLs in your application's output directory
 

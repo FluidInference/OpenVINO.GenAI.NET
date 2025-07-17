@@ -12,7 +12,7 @@ on:
         default: false
 
 env:
-  OPENVINO_VERSION: "2025.2.0.0rc4"
+  OPENVINO_VERSION: "2025.2.0.0"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
@@ -54,7 +54,7 @@ jobs:
           $outputPath = "build/native"
           New-Item -ItemType Directory -Force -Path $outputPath
 
-          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/pre-release/${env:OPENVINO_VERSION}/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
+          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/${env:OPENVINO_VERSION}/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
           $zipPath = "$outputPath/openvino_genai.zip"
 
           Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
@@ -177,40 +177,3 @@ jobs:
           reporter: dotnet-trx
           fail-on-error: true
 
-  publish-nuget:
-    name: Publish NuGet Packages
-    needs: build-test-inference
-    runs-on: windows-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 9.0.x
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: artifacts/
-
-      - name: Pack NuGet packages
-        run: |
-          dotnet pack src/OpenVINO.NET.Core/OpenVINO.NET.Core.csproj --configuration Release --output ./nuget
-          dotnet pack src/OpenVINO.NET.GenAI/OpenVINO.NET.GenAI.csproj --configuration Release --output ./nuget
-          dotnet pack src/OpenVINO.NET.Native/OpenVINO.NET.Native.csproj --configuration Release --output ./nuget
-
-      - name: Upload NuGet packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget-packages
-          path: nuget/*.nupkg
-
-    # Uncomment when ready to publish to NuGet.org
-    # - name: Publish to NuGet
-    #   run: |
-    #     dotnet nuget push ./nuget/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
