@@ -1,0 +1,108 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: windows-latest
+            runtime: win-x64
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: dotnet restore OpenVINO.NET.sln
+
+    - name: Download OpenVINO Runtime (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        Write-Host "Downloading OpenVINO GenAI Runtime for Windows..."
+        $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip"
+        $output = "openvino_genai_runtime.zip"
+        
+        Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
+        
+        Write-Host "Extracting runtime..."
+        Expand-Archive -Path $output -DestinationPath "temp_extract" -Force
+        
+        # Create target directory and copy files
+        New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
+        Copy-Item -Path "temp_extract/openvino_genai_runtime/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
+        
+        Remove-Item -Path $output, "temp_extract" -Recurse -Force
+        Write-Host "✓ OpenVINO runtime setup completed"
+
+    - name: Download OpenVINO Runtime (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "Downloading OpenVINO GenAI Runtime for Linux..."
+        url="https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_runtime_ubuntu22_2025.2.0.0_x86_64.tgz"
+        
+        wget -q --user-agent="OpenVINO.NET/1.0" -O openvino_genai_runtime.tgz "$url"
+        
+        echo "Extracting runtime..."
+        tar -xzf openvino_genai_runtime.tgz
+        
+        # Create target directory and copy files preserving symlinks
+        mkdir -p build/native/runtimes/linux-x64/native
+        cp -a openvino_genai_runtime/lib/* build/native/runtimes/linux-x64/native/
+        
+        rm -rf openvino_genai_runtime.tgz openvino_genai_runtime
+        echo "✓ OpenVINO runtime setup completed"
+
+    - name: Build solution
+      run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore
+
+    - name: Run unit tests
+      run: dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.runtime }}
+        path: ./coverage
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: matrix.os == 'ubuntu-latest'
+      with:
+        directory: ./coverage
+        fail_ci_if_error: false
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Build artifacts
+      run: dotnet publish samples/QuickDemo/QuickDemo.csproj --configuration Release --runtime ${{ matrix.runtime }} --self-contained false --output ./artifacts/${{ matrix.runtime }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: quickdemo-${{ matrix.runtime }}
+        path: ./artifacts/${{ matrix.runtime }}

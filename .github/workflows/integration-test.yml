@@ -1,0 +1,271 @@
+name: Integration Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_devices:
+        description: 'Devices to test (comma-separated: CPU,GPU,NPU)'
+        required: false
+        default: 'CPU,GPU,NPU'
+        type: string
+      model_name:
+        description: 'Model to use for testing'
+        required: false
+        default: 'FluidInference/qwen3-0.6b-int4-ov-npu'
+        type: string
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  integration-test:
+    name: Integration Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+            shell: bash
+          - os: windows-latest
+            runtime: win-x64
+            shell: pwsh
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Cache Model
+      uses: actions/cache@v4
+      with:
+        path: ./Models
+        key: model-${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}-v1
+        restore-keys: |
+          model-${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}-
+
+    - name: Restore dependencies
+      run: dotnet restore OpenVINO.NET.sln
+
+    - name: Download OpenVINO Runtime (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        Write-Host "Downloading OpenVINO GenAI Runtime for Windows..."
+        $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip"
+        $output = "openvino_genai_runtime.zip"
+        
+        Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
+        
+        Write-Host "Extracting runtime..."
+        Expand-Archive -Path $output -DestinationPath "temp_extract" -Force
+        
+        # Create target directory and copy files
+        New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
+        Copy-Item -Path "temp_extract/openvino_genai_runtime/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
+        
+        Remove-Item -Path $output, "temp_extract" -Recurse -Force
+        Write-Host "✓ OpenVINO runtime setup completed"
+
+    - name: Download OpenVINO Runtime (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "Downloading OpenVINO GenAI Runtime for Linux..."
+        url="https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_runtime_ubuntu22_2025.2.0.0_x86_64.tgz"
+        
+        wget -q --user-agent="OpenVINO.NET/1.0" -O openvino_genai_runtime.tgz "$url"
+        
+        echo "Extracting runtime..."
+        tar -xzf openvino_genai_runtime.tgz
+        
+        # Create target directory and copy files preserving symlinks
+        mkdir -p build/native/runtimes/linux-x64/native
+        cp -a openvino_genai_runtime/lib/* build/native/runtimes/linux-x64/native/
+        
+        rm -rf openvino_genai_runtime.tgz openvino_genai_runtime
+        echo "✓ OpenVINO runtime setup completed"
+
+    - name: Build solution
+      run: dotnet build OpenVINO.NET.sln --configuration Release
+
+    - name: Download Test Model
+      working-directory: ./samples/QuickDemo
+      run: |
+        mkdir -p Models
+        cd Models
+        
+        # Use model name from input or default
+        MODEL_NAME="${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
+        MODEL_DIR=$(echo "$MODEL_NAME" | cut -d'/' -f2)
+        
+        if [ ! -d "$MODEL_DIR" ] || [ ! -f "$MODEL_DIR/openvino_model.xml" ]; then
+          echo "Downloading model: $MODEL_NAME"
+          
+          mkdir -p "$MODEL_DIR"
+          cd "$MODEL_DIR"
+          
+          # Download key files
+          for file in openvino_model.xml openvino_model.bin openvino_tokenizer.xml openvino_tokenizer.bin openvino_detokenizer.xml openvino_detokenizer.bin config.json generation_config.json; do
+            echo "Downloading $file..."
+            curl -L -f -o "$file" "https://huggingface.co/$MODEL_NAME/resolve/main/$file" --user-agent "OpenVINO.NET/1.0" || echo "Warning: Failed to download $file (may be optional)"
+          done
+          
+          cd ..
+          echo "✓ Model download completed"
+        else
+          echo "✓ Model already cached"
+        fi
+      shell: bash
+
+    - name: Set Model Path Environment
+      run: |
+        MODEL_NAME="${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
+        MODEL_DIR=$(echo "$MODEL_NAME" | cut -d'/' -f2)
+        MODEL_PATH="$(pwd)/samples/QuickDemo/Models/$MODEL_DIR"
+        echo "QUICKDEMO_MODEL_PATH=$MODEL_PATH" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Run Integration Tests
+      run: dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj --configuration Release --verbosity normal --filter "Category=Integration"
+
+    - name: Test Device Functionality
+      working-directory: ./samples/QuickDemo
+      shell: ${{ matrix.shell }}
+      run: |
+        $devices = "${{ inputs.test_devices || 'CPU,GPU,NPU' }}" -split ','
+        $results = @()
+        
+        foreach ($device in $devices) {
+          $device = $device.Trim()
+          Write-Host "Testing device: $device"
+          
+          try {
+            $output = dotnet run --configuration Release -- --device $device 2>&1
+            $exitCode = $LASTEXITCODE
+            
+            if ($exitCode -eq 0) {
+              Write-Host "✓ $device: SUCCESS" -ForegroundColor Green
+              $results += "$device=SUCCESS"
+              
+              # Extract performance metrics from output
+              $tpsMatch = [regex]::Match($output, 'Performance:\s+(\d+\.\d+)\s+tokens/sec')
+              $latencyMatch = [regex]::Match($output, 'First token:\s+(\d+)ms')
+              
+              if ($tpsMatch.Success) {
+                $tps = $tpsMatch.Groups[1].Value
+                Write-Host "  Tokens/sec: $tps"
+                $results += "$device_TPS=$tps"
+              }
+              
+              if ($latencyMatch.Success) {
+                $latency = $latencyMatch.Groups[1].Value
+                Write-Host "  First token latency: ${latency}ms"
+                $results += "$device_LATENCY=$latency"
+              }
+            } else {
+              Write-Host "✗ $device: FAILED" -ForegroundColor Red
+              $results += "$device=FAILED"
+              Write-Host "Error output: $output"
+            }
+          } catch {
+            Write-Host "✗ $device: ERROR - $($_.Exception.Message)" -ForegroundColor Red
+            $results += "$device=ERROR"
+          }
+          
+          Write-Host ""
+        }
+        
+        # Save results to file for artifact upload
+        $results | Out-File -FilePath "device-test-results-${{ matrix.runtime }}.txt"
+        
+        Write-Host "Device Test Summary:"
+        $results | ForEach-Object { Write-Host "  $_" }
+
+    - name: Run Benchmark Test
+      working-directory: ./samples/QuickDemo
+      run: dotnet run --configuration Release -- --benchmark
+      continue-on-error: true
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-results-${{ matrix.runtime }}
+        path: |
+          ./samples/QuickDemo/device-test-results-*.txt
+          ./samples/QuickDemo/benchmark-results-*.json
+
+    - name: Create Test Summary
+      if: always()
+      shell: ${{ matrix.shell }}
+      run: |
+        Write-Host "## Integration Test Results (${{ matrix.runtime }})" > test-summary.md
+        Write-Host "" >> test-summary.md
+        
+        if (Test-Path "./samples/QuickDemo/device-test-results-${{ matrix.runtime }}.txt") {
+          $results = Get-Content "./samples/QuickDemo/device-test-results-${{ matrix.runtime }}.txt"
+          Write-Host "### Device Test Results" >> test-summary.md
+          Write-Host "" >> test-summary.md
+          Write-Host "| Device | Status | TPS | Latency |" >> test-summary.md
+          Write-Host "|--------|--------|-----|---------|" >> test-summary.md
+          
+          $deviceData = @{}
+          foreach ($line in $results) {
+            $parts = $line -split '='
+            if ($parts.Count -eq 2) {
+              $key = $parts[0]
+              $value = $parts[1]
+              
+              if ($key -like "*_TPS") {
+                $device = $key -replace "_TPS", ""
+                if (!$deviceData[$device]) { $deviceData[$device] = @{} }
+                $deviceData[$device]["TPS"] = $value
+              } elseif ($key -like "*_LATENCY") {
+                $device = $key -replace "_LATENCY", ""
+                if (!$deviceData[$device]) { $deviceData[$device] = @{} }
+                $deviceData[$device]["LATENCY"] = "${value}ms"
+              } else {
+                if (!$deviceData[$key]) { $deviceData[$key] = @{} }
+                $deviceData[$key]["STATUS"] = $value
+              }
+            }
+          }
+          
+          foreach ($device in $deviceData.Keys) {
+            $status = $deviceData[$device]["STATUS"] ?? "UNKNOWN"
+            $tps = $deviceData[$device]["TPS"] ?? "N/A"
+            $latency = $deviceData[$device]["LATENCY"] ?? "N/A"
+            Write-Host "| $device | $status | $tps | $latency |" >> test-summary.md
+          }
+        }
+        
+        Write-Host ""
+        Get-Content test-summary.md
+        
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          if (fs.existsSync('test-summary.md')) {
+            const summary = fs.readFileSync('test-summary.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+          }
