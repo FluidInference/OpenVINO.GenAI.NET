@@ -121,13 +121,56 @@ jobs:
         Write-Host "Extracting runtime..."
         Expand-Archive -Path $output -DestinationPath "temp_extract" -Force
         
+        # Debug: Show the complete directory structure after extraction
+        Write-Host "=== Complete directory structure after extraction ==="
+        Get-ChildItem -Path "temp_extract" -Recurse | Format-Table FullName, Length, LastWriteTime
+        Write-Host "=================================================="
+        
         # Expected directory structure: openvino_genai_windows_VERSION_x86_64/runtime/lib/intel64/Release
         $expectedPath = "temp_extract/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64/runtime/lib/intel64/Release"
         
+        Write-Host "Looking for DLLs in expected path: $expectedPath"
+        
         if (-not (Test-Path $expectedPath)) {
           Write-Host "❌ Expected OpenVINO runtime path not found: $expectedPath"
-          Write-Host "Available directories:"
+          Write-Host "Available directories in temp_extract:"
           Get-ChildItem -Path "temp_extract" -Recurse -Directory | Format-Table FullName
+          
+          # Try to find any DLL files in the extracted content
+          Write-Host "Searching for DLL files in extracted content..."
+          $dllFiles = Get-ChildItem -Path "temp_extract" -Filter "*.dll" -Recurse
+          if ($dllFiles.Count -gt 0) {
+            Write-Host "Found DLL files at:"
+            $dllFiles | ForEach-Object { Write-Host "  - $($_.FullName)" }
+          } else {
+            Write-Host "No DLL files found in extracted content"
+          }
+          
+          exit 1
+        }
+        
+        # Debug: Show what's in the expected path
+        Write-Host "Files in expected path:"
+        Get-ChildItem -Path $expectedPath -Recurse | Format-Table Name, Length, LastWriteTime
+        
+        # Check for required DLLs specifically
+        $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll")
+        $missingDlls = @()
+        
+        foreach ($dll in $requiredDlls) {
+          $found = Get-ChildItem -Path $expectedPath -Filter $dll -ErrorAction SilentlyContinue
+          if ($found) {
+            Write-Host "✓ Found required DLL: $dll"
+          } else {
+            Write-Host "✗ Missing required DLL: $dll"
+            $missingDlls += $dll
+          }
+        }
+        
+        if ($missingDlls.Count -gt 0) {
+          Write-Host "❌ Missing required DLLs: $($missingDlls -join ', ')"
+          Write-Host "Available DLL files in expected path:"
+          Get-ChildItem -Path $expectedPath -Filter "*.dll" | ForEach-Object { Write-Host "  - $($_.Name)" }
           exit 1
         }
         
@@ -136,9 +179,12 @@ jobs:
         New-Item -Path $nativePath -ItemType Directory -Force
         
         Write-Host "Copying libraries from: $expectedPath"
-        Get-ChildItem -Path $expectedPath -Filter "*.dll" |
+        $copiedFiles = Get-ChildItem -Path $expectedPath -Filter "*.dll" |
           Where-Object { -not $_.Name.EndsWith('d.dll') } |
-          Copy-Item -Destination $nativePath -Force
+          Copy-Item -Destination $nativePath -Force -PassThru
+        
+        Write-Host "✓ Copied $($copiedFiles.Count) DLL files:"
+        $copiedFiles | ForEach-Object { Write-Host "  - $($_.Name)" }
         
         # Clean up
         Remove-Item -Path $output, "temp_extract" -Recurse -Force
@@ -259,6 +305,35 @@ jobs:
         )
         
         Write-Host "Copying OpenVINO DLLs to application output directories..."
+        Write-Host "Source directory: $sourceRuntimePath"
+        
+        # Debug: List what's actually in the source directory
+        if (Test-Path $sourceRuntimePath) {
+          Write-Host "Files in source directory:"
+          Get-ChildItem -Path $sourceRuntimePath -Recurse | Format-Table Name, Length, LastWriteTime
+        } else {
+          Write-Host "❌ Source directory not found: $sourceRuntimePath"
+          exit 1
+        }
+        
+        # Check for required DLLs in source before copying
+        $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll")
+        $missingFromSource = @()
+        
+        foreach ($dll in $requiredDlls) {
+          $found = Get-ChildItem -Path $sourceRuntimePath -Filter $dll -Recurse -ErrorAction SilentlyContinue
+          if (-not $found) {
+            $missingFromSource += $dll
+          }
+        }
+        
+        if ($missingFromSource.Count -gt 0) {
+          Write-Host "❌ Required DLLs missing from source directory: $($missingFromSource -join ', ')"
+          Write-Host "Available DLL files in source:"
+          Get-ChildItem -Path $sourceRuntimePath -Filter "*.dll" -Recurse | ForEach-Object { Write-Host "  - $($_.Name)" }
+          exit 1
+        }
+        
         $failed = $false
         
         foreach ($targetPath in $targetPaths) {
@@ -268,17 +343,23 @@ jobs:
           }
           
           # Copy only release DLLs, excluding debug versions
-          Get-ChildItem -Path $sourceRuntimePath -Filter "*.dll" |
+          $copiedFiles = Get-ChildItem -Path $sourceRuntimePath -Filter "*.dll" |
             Where-Object { -not $_.Name.EndsWith('d.dll') } |
-            Copy-Item -Destination $targetPath -Force
-          Write-Host "✓ Copied release DLLs to: $targetPath"
+            Copy-Item -Destination $targetPath -Force -PassThru
           
-          # Verify the copy
-          if (Test-Path "$targetPath/openvino_genai_c.dll") {
-            Write-Host "  ✓ openvino_genai_c.dll verified in $targetPath"
-          } else {
-            Write-Host "  ✗ openvino_genai_c.dll NOT found in $targetPath"
-            $failed = $true
+          Write-Host "✓ Copied $($copiedFiles.Count) DLLs to: $targetPath"
+          
+          # List what was actually copied
+          $copiedFiles | ForEach-Object { Write-Host "  - $($_.Name)" }
+          
+          # Verify the copy for each required DLL
+          foreach ($dll in $requiredDlls) {
+            if (Test-Path "$targetPath/$dll") {
+              Write-Host "  ✓ $dll verified in $targetPath"
+            } else {
+              Write-Host "  ✗ $dll NOT found in $targetPath"
+              $failed = $true
+            }
           }
         }
 
