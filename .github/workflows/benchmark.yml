@@ -284,7 +284,8 @@ jobs:
       shell: pwsh
       run: |
         # Add OpenVINO runtime to PATH so .NET can find the DLLs
-        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        # The DLLs are in the intel64/Release subdirectory
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native/intel64/Release"
         $currentPath = $env:PATH
         $newPath = "$runtimePath;$currentPath"
         "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Append
