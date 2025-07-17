@@ -16,11 +16,13 @@ internal static class NativeLibraryLoader
     /// </summary>
     internal static void EnsureLoaded()
     {
-        if (_isInitialized) return;
+        if (_isInitialized)
+            return;
 
         lock (_lock)
         {
-            if (_isInitialized) return;
+            if (_isInitialized)
+                return;
 
             try
             {
@@ -29,7 +31,7 @@ internal static class NativeLibraryLoader
                     LoadLinuxLibraries();
                 }
                 // Windows libraries are loaded automatically via DllImport
-                
+
                 _isInitialized = true;
             }
             catch (Exception ex)
@@ -47,7 +49,7 @@ internal static class NativeLibraryLoader
     {
         // Try to load from several possible locations
         var searchPaths = GetLinuxSearchPaths();
-        
+
         // Core libraries that need to be loaded in order
         var libraries = new[]
         {
@@ -93,7 +95,7 @@ internal static class NativeLibraryLoader
     private static string[] GetLinuxSearchPaths()
     {
         var paths = new List<string>();
-        
+
         // 1. Output directory (where the app is running from)
         var assemblyLocation = Assembly.GetExecutingAssembly().Location;
         if (!string.IsNullOrEmpty(assemblyLocation))
@@ -102,7 +104,7 @@ internal static class NativeLibraryLoader
             if (!string.IsNullOrEmpty(outputDir))
             {
                 paths.Add(outputDir);
-                
+
                 // Also check runtimes subfolder
                 var runtimesPath = Path.Combine(outputDir, "runtimes", "linux-x64", "native");
                 if (Directory.Exists(runtimesPath))
@@ -121,8 +123,9 @@ internal static class NativeLibraryLoader
         for (int i = 0; i < 4; i++) // Check up to 4 levels up
         {
             parentDir = Path.GetDirectoryName(parentDir);
-            if (string.IsNullOrEmpty(parentDir)) break;
-            
+            if (string.IsNullOrEmpty(parentDir))
+                break;
+
             var parentBuildPath = Path.Combine(parentDir, "build", "native", "runtimes", "linux-x64", "native");
             if (Directory.Exists(parentBuildPath))
                 paths.Add(parentBuildPath);

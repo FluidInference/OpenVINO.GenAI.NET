@@ -25,6 +25,10 @@ on:
         required: false
         default: true
         type: boolean
+        
+permissions:
+  pull-requests: write
+  issues: write
 
 env:
   OPENVINO_VERSION: "2025.2.0.0"

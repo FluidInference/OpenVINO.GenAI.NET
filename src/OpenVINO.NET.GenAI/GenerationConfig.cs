@@ -19,7 +19,7 @@ public sealed class GenerationConfig : IDisposable
     {
         // Ensure native libraries are loaded before any P/Invoke calls
         NativeLibraryLoader.EnsureLoaded();
-        
+
         var status = GenAINativeMethods.ov_genai_generation_config_create(out var handle);
         OpenVINOGenAIException.ThrowIfError(status, "create generation config");
         _handle = new GenerationConfigSafeHandle(handle, true);

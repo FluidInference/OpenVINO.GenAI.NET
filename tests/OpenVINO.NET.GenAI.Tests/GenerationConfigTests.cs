@@ -1,5 +1,5 @@
-using Xunit;
 using OpenVINO.NET.GenAI;
+using Xunit;
 
 namespace OpenVINO.NET.GenAI.Tests;
 
