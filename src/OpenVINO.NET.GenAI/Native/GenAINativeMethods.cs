@@ -7,6 +7,7 @@ namespace OpenVINO.NET.GenAI.Native;
 /// </summary>
 internal static class GenAINativeMethods
 {
+    // Use library name without extension - .NET will find the appropriate file (.dll on Windows, .so on Linux)
     private const string DllName = "openvino_genai_c";
 
     #region LLM Pipeline Methods

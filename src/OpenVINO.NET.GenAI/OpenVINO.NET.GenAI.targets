@@ -1,20 +1,33 @@
 <Project>
   
   <PropertyGroup>
-    <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
-    <!-- In CI environment, suppress warnings about missing DLLs since they're downloaded separately -->
+    <!-- Get the solution directory by going up from this file's directory -->
+    <SolutionDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../../..'))</SolutionDir>
+    
+    <!-- Try multiple potential runtime paths to handle different project structures -->
+    <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND $([MSBuild]::IsOSPlatform('Windows')) AND Exists('$(SolutionDir)\build\native\runtimes\win-x64\native')">$(SolutionDir)\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
+    <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND $([MSBuild]::IsOSPlatform('Windows')) AND Exists('$(MSBuildThisFileDirectory)..\..\build\native\runtimes\win-x64\native')">$(MSBuildThisFileDirectory)..\..\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
+    
+    <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND $([MSBuild]::IsOSPlatform('Linux')) AND Exists('$(SolutionDir)/build/native/runtimes/linux-x64/native')">$(SolutionDir)/build/native/runtimes/linux-x64/native</OpenVINOGenAIRuntimePath>
+    <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND $([MSBuild]::IsOSPlatform('Linux')) AND Exists('$(MSBuildThisFileDirectory)../../build/native/runtimes/linux-x64/native')">$(MSBuildThisFileDirectory)../../build/native/runtimes/linux-x64/native</OpenVINOGenAIRuntimePath>
+    
+    <!-- In CI environment, suppress warnings about missing native libraries since they're downloaded separately -->
     <SuppressOpenVINOWarnings Condition="'$(CI)' == 'true'">true</SuppressOpenVINOWarnings>
+    
+    <!-- Determine native library extension based on platform -->
+    <NativeLibExtension Condition="$([MSBuild]::IsOSPlatform('Windows'))">.dll</NativeLibExtension>
+    <NativeLibExtension Condition="$([MSBuild]::IsOSPlatform('Linux'))">.so</NativeLibExtension>
   </PropertyGroup>
 
-  <!-- Copy native DLLs to output directory -->
+  <!-- Copy native libraries to output directory -->
   <Target Name="CopyOpenVINOGenAINativeLibraries" BeforeTargets="Build" Condition="'$(TargetFramework)' != '' AND '$(RuntimeIdentifier)' != 'browser-wasm'">
     
-    <!-- Include all DLLs from the runtime directory -->
+    <!-- Include all native libraries from the runtime directory based on platform -->
     <ItemGroup>
-      <OpenVINOGenAINativeLibraries Include="$(OpenVINOGenAIRuntimePath)\*.dll" />
+      <OpenVINOGenAINativeLibraries Include="$(OpenVINOGenAIRuntimePath)/*$(NativeLibExtension)" />
     </ItemGroup>
 
-    <!-- Copy DLLs to output directory -->
+    <!-- Copy native libraries to output directory -->
     <Copy 
       SourceFiles="@(OpenVINOGenAINativeLibraries)" 
       DestinationFolder="$(OutputPath)" 
@@ -32,15 +45,15 @@
              Importance="normal" 
              Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
 
-    <Warning Text="OpenVINO GenAI: Native libraries not found at $(OpenVINOGenAIRuntimePath). Please ensure the native binaries are available." 
-             Condition="!Exists('$(OpenVINOGenAIRuntimePath)') AND '$(SuppressOpenVINOWarnings)' != 'true'" />
+    <Warning Text="OpenVINO GenAI: Native libraries not found. Searched paths: $(SolutionDir)/build/native/runtimes/[platform]/native. Please ensure the native binaries are available by downloading the OpenVINO runtime." 
+             Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND '$(SuppressOpenVINOWarnings)' != 'true'" />
   </Target>
 
   <!-- For publish scenarios -->
   <Target Name="PublishOpenVINOGenAINativeLibraries" BeforeTargets="PublishBuild" Condition="'$(PublishDir)' != ''">
     
     <ItemGroup>
-      <OpenVINOGenAINativeLibraries Include="$(OpenVINOGenAIRuntimePath)\*.dll" />
+      <OpenVINOGenAINativeLibraries Include="$(OpenVINOGenAIRuntimePath)/*$(NativeLibExtension)" />
     </ItemGroup>
 
     <Copy 
