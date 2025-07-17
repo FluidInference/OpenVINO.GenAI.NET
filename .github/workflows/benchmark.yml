@@ -291,6 +291,18 @@ jobs:
       working-directory: ./samples/QuickDemo
       shell: pwsh
       run: |
+        # Debug application output directory before benchmark
+        $appOutput = "bin/Release/net8.0"
+        Write-Host "=== Debug: Application Output Directory ==="
+        if (Test-Path $appOutput) {
+          Write-Host "Listing DLL files in $appOutput:"
+          Get-ChildItem -Path $appOutput -Filter *.dll -Recurse | Format-Table FullName, Length
+        } else {
+          Write-Host "Warning: Application output directory $appOutput not found"
+        }
+        Write-Host "========================================="
+        Write-Host ""
+        
         # Debug environment before starting benchmark
         Write-Host "=== Environment Debug Information ==="
         Write-Host "Working Directory: $(Get-Location)"
