@@ -1,6 +1,7 @@
 name: Performance Benchmark
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       devices:
