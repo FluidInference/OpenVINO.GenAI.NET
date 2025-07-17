@@ -129,13 +129,13 @@ jobs:
         
         # Try different potential library paths
         if (Test-Path "$extractedDir/runtime/lib/intel64/Release") {
-          Copy-Item -Path "$extractedDir/runtime/lib/intel64/Release/*" -Destination $nativePath -Recurse -Force
+          Copy-Item -Path "$extractedDir/runtime/lib/intel64/Release/*" -Destination $nativePath -Force
         } elseif (Test-Path "$extractedDir/runtime/lib/intel64") {
-          Copy-Item -Path "$extractedDir/runtime/lib/intel64/*" -Destination $nativePath -Recurse -Force
+          Copy-Item -Path "$extractedDir/runtime/lib/intel64/*" -Destination $nativePath -Force
         } elseif (Test-Path "$extractedDir/runtime/bin") {
-          Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination $nativePath -Recurse -Force
+          Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination $nativePath -Force
         } elseif (Test-Path "$extractedDir/bin") {
-          Copy-Item -Path "$extractedDir/bin/*" -Destination $nativePath -Recurse -Force
+          Copy-Item -Path "$extractedDir/bin/*" -Destination $nativePath -Force
         } else {
           # Fallback: recursively find and copy all DLLs
           Write-Host "Warning: Standard paths not found, using fallback DLL search"
@@ -172,8 +172,9 @@ jobs:
           $missingDlls = @()
           
           foreach ($dll in $requiredDlls) {
-            if (Test-Path "$runtimePath/$dll") {
-              Write-Host "✓ Found required DLL: $dll"
+            $found = Get-ChildItem -Path $runtimePath -Filter $dll -Recurse -ErrorAction SilentlyContinue
+            if ($found) {
+              Write-Host "✓ Found required DLL: $dll at $($found[0].FullName)"
             } else {
               Write-Host "✗ Missing required DLL: $dll"
               $missingDlls += $dll
