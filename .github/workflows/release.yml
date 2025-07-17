@@ -117,7 +117,7 @@ jobs:
           $outputPath = "build/native"
           New-Item -ItemType Directory -Force -Path $outputPath
 
-          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/${env:OPENVINO_VERSION}/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
+          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
           $zipPath = "$outputPath/openvino_genai.zip"
 
           Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
