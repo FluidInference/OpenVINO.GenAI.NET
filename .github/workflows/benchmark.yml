@@ -5,13 +5,8 @@ on:
     branches: [ main ]
   workflow_dispatch:
     inputs:
-      devices:
-        description: 'Devices to benchmark (comma-separated: CPU only on GitHub runners)'
-        required: false
-        default: 'CPU'
-        type: string
       iterations:
-        description: 'Number of iterations per device'
+        description: 'Number of iterations'
         required: false
         default: '3'
         type: number
@@ -20,11 +15,7 @@ on:
         required: false
         default: 'FluidInference/qwen3-0.6b-int4-ov-npu'
         type: string
-      compare_with_baseline:
-        description: 'Compare with baseline performance'
-        required: false
-        default: true
-        type: boolean
+
         
 permissions:
   pull-requests: write
@@ -62,14 +53,7 @@ jobs:
         restore-keys: |
           model-${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}-
 
-    - name: Cache Baseline Performance Data
-      if: inputs.compare_with_baseline
-      uses: actions/cache@v4
-      with:
-        path: ./baseline-performance
-        key: baseline-performance-win-x64-v1
-        restore-keys: |
-          baseline-performance-win-x64-
+
 
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
@@ -78,7 +62,7 @@ jobs:
       id: cache-openvino-windows
       uses: actions/cache@v4
       with:
-        path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
+        path: build/native/runtimes/win-x64/native
         key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
 
     - name: Download OpenVINO Runtime
@@ -156,6 +140,48 @@ jobs:
         Remove-Item -Path $output, "temp_extract" -Recurse -Force
         Write-Host "✓ OpenVINO runtime setup completed"
 
+    - name: Verify OpenVINO Runtime Installation
+      shell: pwsh
+      run: |
+        Write-Host "Verifying OpenVINO Runtime Installation..."
+        Write-Host "========================================"
+        
+        $runtimePath = "build/native/runtimes/win-x64/native"
+        
+        if (Test-Path $runtimePath) {
+          Write-Host "✓ Runtime directory exists: $runtimePath"
+          
+          # List all files in the runtime directory
+          Write-Host ""
+          Write-Host "Files in runtime directory:"
+          Get-ChildItem -Path $runtimePath -Recurse | Format-Table Name, Length, LastWriteTime
+          
+          # Check for specific required DLLs
+          $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll")
+          $missingDlls = @()
+          
+          foreach ($dll in $requiredDlls) {
+            if (Test-Path "$runtimePath/$dll") {
+              Write-Host "✓ Found required DLL: $dll"
+            } else {
+              Write-Host "✗ Missing required DLL: $dll"
+              $missingDlls += $dll
+            }
+          }
+          
+          if ($missingDlls.Count -eq 0) {
+            Write-Host ""
+            Write-Host "✓ All required DLLs are present"
+          } else {
+            Write-Host ""
+            Write-Host "❌ Missing DLLs: $($missingDlls -join ', ')"
+            Write-Host "This will cause runtime failures"
+          }
+        } else {
+          Write-Host "❌ Runtime directory not found: $runtimePath"
+          exit 1
+        }
+
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
 
@@ -202,302 +228,105 @@ jobs:
         $MODEL_PATH = "$(Get-Location)/samples/QuickDemo/Models/$MODEL_DIR"
         "QUICKDEMO_MODEL_PATH=$MODEL_PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+    - name: Setup Environment for OpenVINO
+      shell: pwsh
+      run: |
+        # Add OpenVINO runtime to PATH
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        $currentPath = $env:PATH
+        $newPath = "$runtimePath;$currentPath"
+        "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+        Write-Host "Added to PATH: $runtimePath"
+        Write-Host "Verifying PATH update..."
+        Write-Host "PATH now contains:"
+        ($newPath -split ';') | ForEach-Object { Write-Host "  $_" }
+
+    - name: Copy OpenVINO DLLs to Application Output
+      shell: pwsh
+      run: |
+        # Copy DLLs to where the .NET application will look for them
+        $sourceRuntimePath = "build/native/runtimes/win-x64/native"
+        $targetPaths = @(
+          "samples/QuickDemo/bin/Release/net8.0",
+          "samples/QuickDemo/bin/Release/net8.0/runtimes/win-x64/native"
+        )
+        
+        Write-Host "Copying OpenVINO DLLs to application output directories..."
+        
+        foreach ($targetPath in $targetPaths) {
+          if (-not (Test-Path $targetPath)) {
+            New-Item -ItemType Directory -Path $targetPath -Force
+            Write-Host "Created directory: $targetPath"
+          }
+          
+          Copy-Item -Path "$sourceRuntimePath/*" -Destination $targetPath -Recurse -Force
+          Write-Host "✓ Copied DLLs to: $targetPath"
+          
+          # Verify the copy
+          if (Test-Path "$targetPath/openvino_genai_c.dll") {
+            Write-Host "  ✓ openvino_genai_c.dll verified in $targetPath"
+          } else {
+            Write-Host "  ✗ openvino_genai_c.dll NOT found in $targetPath"
+          }
+        }
+
     - name: Run Performance Benchmark
       working-directory: ./samples/QuickDemo
       shell: pwsh
       run: |
-        # Note: GitHub hosted runners only have CPU available, no GPU/NPU
-        $devices = "${{ inputs.devices || 'CPU' }}" -split ','
-        $iterations = [int]"${{ inputs.iterations || 3 }}"
-        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-        $benchmarkResults = @()
-        
-        Write-Host "Performance Benchmark - $timestamp"
-        Write-Host "Devices: $($devices -join ', ')"
-        Write-Host "Iterations per device: $iterations"
-        Write-Host "Platform: win-x64"
+        # Debug environment before starting benchmark
+        Write-Host "=== Environment Debug Information ==="
+        Write-Host "Working Directory: $(Get-Location)"
+        Write-Host "Model Path: $env:QUICKDEMO_MODEL_PATH"
+        Write-Host "======================================"
         Write-Host ""
         
-        foreach ($device in $devices) {
-          $device = $device.Trim()
-          Write-Host "Benchmarking device: $device"
-          Write-Host "================================"
+        # Determine number of iterations (default 3)
+        $iterations = 3
+        if ("${{ inputs.iterations }}" -ne "") {
+          $iterations = [int]"${{ inputs.iterations }}"
+        }
+        
+        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        
+        $allOutput = @()
+        $allOutput += "# Performance Benchmark Results - Windows x64"
+        $allOutput += ""
+        $allOutput += "**Generated:** $timestamp"
+        $allOutput += "**Platform:** win-x64"
+        $allOutput += "**Iterations:** $iterations"
+        $allOutput += ""
+        $allOutput += "``````"
+        
+        for ($i = 1; $i -le $iterations; $i++) {
+          Write-Host "Iteration $i/$iterations..."
+          $startTime = Get-Date
+          $output = dotnet run --configuration Release -- --device CPU 2>&1
+          $endTime = Get-Date
+          $exitCode = $LASTEXITCODE
+          $elapsed = ($endTime - $startTime).TotalMilliseconds
           
-          $deviceResults = @{
-            Device = $device
-            Platform = "win-x64"
-            Timestamp = $timestamp
-            Iterations = @()
-            Success = $false
-            ErrorMessage = ""
-          }
-          
-          for ($i = 1; $i -le $iterations; $i++) {
-            Write-Host "Iteration $i/$iterations for device $device..."
-            
-            try {
-              $startTime = Get-Date
-              Write-Host "  Starting benchmark run..."
-              
-              # Run the application and capture all output
-              $output = dotnet run --configuration Release -- --device $device 2>&1
-              $endTime = Get-Date
-              $exitCode = $LASTEXITCODE
-              $totalTime = ($endTime - $startTime).TotalMilliseconds
-              
-              Write-Host "  Benchmark completed in $($totalTime.ToString('F0'))ms with exit code: $exitCode"
-              
-              # Always show the full output for debugging
-              Write-Host "  === Full Application Output ==="
-              Write-Host $output
-              Write-Host "  === End Application Output ==="
-              
-              if ($exitCode -eq 0) {
-                # Parse performance metrics with more robust regex patterns
-                # Handle potential variations in output format
-                $tpsMatch = [regex]::Match($output, 'Performance:\s+(\d+(?:\.\d+)?)\s+tokens/sec')
-                $latencyMatch = [regex]::Match($output, 'First token:\s+(\d+)ms')
-                
-                # Also try alternative patterns if the first ones fail
-                if (-not $tpsMatch.Success) {
-                  $tpsMatch = [regex]::Match($output, '(\d+(?:\.\d+)?)\s+tokens/sec')
-                }
-                if (-not $latencyMatch.Success) {
-                  $latencyMatch = [regex]::Match($output, 'First token:\s+(\d+)ms')
-                }
-                
-                Write-Host "  === Performance Parsing Results ==="
-                Write-Host "  TPS Match Success: $($tpsMatch.Success)"
-                if ($tpsMatch.Success) {
-                  Write-Host "  TPS Value: $($tpsMatch.Groups[1].Value)"
-                } else {
-                  Write-Host "  TPS Pattern not found in output"
-                }
-                
-                Write-Host "  Latency Match Success: $($latencyMatch.Success)"
-                if ($latencyMatch.Success) {
-                  Write-Host "  Latency Value: $($latencyMatch.Groups[1].Value)"
-                } else {
-                  Write-Host "  Latency Pattern not found in output"
-                }
-                
-                $tokensPerSecond = if ($tpsMatch.Success) { [double]$tpsMatch.Groups[1].Value } else { 0 }
-                $firstTokenLatency = if ($latencyMatch.Success) { [int]$latencyMatch.Groups[1].Value } else { 0 }
-                
-                $iterationResult = @{
-                  Iteration = $i
-                  Success = $true
-                  TokensPerSecond = $tokensPerSecond
-                  FirstTokenLatencyMs = $firstTokenLatency
-                  TotalTimeMs = $totalTime
-                  MemoryUsageMB = 0
-                  ParsedSuccessfully = $tpsMatch.Success -and $latencyMatch.Success
-                }
-                
-                $deviceResults.Iterations += $iterationResult
-                $deviceResults.Success = $true
-                
-                Write-Host "  ✓ RESULTS: TPS=$($tokensPerSecond), Latency=$($firstTokenLatency)ms, Total=$($totalTime.ToString('F0'))ms"
-                
-                # Show warnings if parsing failed
-                if (-not $iterationResult.ParsedSuccessfully) {
-                  Write-Host "  ⚠️  WARNING: Performance metrics could not be parsed from output"
-                }
-              } else {
-                Write-Host "  ✗ Application failed with exit code: $exitCode"
-                Write-Host "  ✗ This will end benchmarking for this device"
-                $deviceResults.ErrorMessage = "Application exit code: $exitCode"
-                break
-              }
-            } catch {
-              Write-Host "  ✗ Exception during benchmark: $($_.Exception.Message)"
-              $deviceResults.ErrorMessage = $_.Exception.Message
-              break
-            }
-            
-            # Add a small delay between iterations
-            if ($i -lt $iterations) {
-              Write-Host "  Waiting 2 seconds before next iteration..."
-              Start-Sleep -Seconds 2
-            }
-          }
-          
-          # Calculate averages for successful runs
-          if ($deviceResults.Success -and $deviceResults.Iterations.Count -gt 0) {
-            $successfulIterations = $deviceResults.Iterations | Where-Object { $_.Success }
-            $parsedIterations = $successfulIterations | Where-Object { $_.ParsedSuccessfully }
-            
-            $deviceResults.AverageTokensPerSecond = ($successfulIterations | Measure-Object -Property TokensPerSecond -Average).Average
-            $deviceResults.AverageFirstTokenLatencyMs = ($successfulIterations | Measure-Object -Property FirstTokenLatencyMs -Average).Average
-            $deviceResults.AverageTotalTimeMs = ($successfulIterations | Measure-Object -Property TotalTimeMs -Average).Average
-            $deviceResults.MaxMemoryUsageMB = ($successfulIterations | Measure-Object -Property MemoryUsageMB -Maximum).Maximum
-            
-            Write-Host "  === Final Results Summary ==="
-            Write-Host "  Total Iterations: $($deviceResults.Iterations.Count)"
-            Write-Host "  Successful Iterations: $($successfulIterations.Count)"
-            Write-Host "  Parsed Successfully: $($parsedIterations.Count)"
-            Write-Host "  Average TPS: $($deviceResults.AverageTokensPerSecond.ToString('F2'))"
-            Write-Host "  Average Latency: $($deviceResults.AverageFirstTokenLatencyMs.ToString('F0'))ms"
-            Write-Host "  Average Total Time: $($deviceResults.AverageTotalTimeMs.ToString('F0'))ms"
-            
-            if ($parsedIterations.Count -lt $successfulIterations.Count) {
-              Write-Host "  ⚠️  WARNING: Some iterations failed to parse performance metrics!"
-              Write-Host "  ⚠️  This may indicate output format issues or application errors."
-            }
-          } else {
-            Write-Host "  ✗ No successful iterations for this device"
-          }
-          
-          $benchmarkResults += $deviceResults
+          Write-Host $output
+          Write-Host "Exit Code: $exitCode, Time: $($elapsed.ToString('F0'))ms"
           Write-Host ""
-        }
-        
-        # Save detailed results to JSON
-        $resultFile = "benchmark-results-win-x64-$timestamp.json"
-        $benchmarkResults | ConvertTo-Json -Depth 10 | Out-File -FilePath $resultFile
-        
-        # Create summary table
-        $summaryFile = "benchmark-summary-win-x64-$timestamp.txt"
-        "Performance Benchmark Summary - win-x64" | Out-File -FilePath $summaryFile
-        "Generated: $timestamp" | Out-File -FilePath $summaryFile -Append
-        "" | Out-File -FilePath $summaryFile -Append
-        "Device       | Status | Avg TPS | Avg Latency | Iterations" | Out-File -FilePath $summaryFile -Append
-        "------------ | ------ | ------- | ----------- | ----------" | Out-File -FilePath $summaryFile -Append
-        
-        foreach ($result in $benchmarkResults) {
-          $status = if ($result.Success) { "✓" } else { "✗" }
-          $avgTps = if ($result.Success) { $result.AverageTokensPerSecond.ToString("F1") } else { "N/A" }
-          $avgLatency = if ($result.Success) { $result.AverageFirstTokenLatencyMs.ToString("F0") + "ms" } else { "N/A" }
-          $iterCount = if ($result.Success) { $result.Iterations.Count } else { "0" }
           
-          "$($result.Device.PadRight(12)) | $($status.PadRight(6)) | $($avgTps.PadRight(7)) | $($avgLatency.PadRight(11)) | $iterCount" | Out-File -FilePath $summaryFile -Append
+          $allOutput += "Iteration $i/$iterations (Exit Code: $exitCode, Time: $($elapsed.ToString('F0'))ms):"
+          $allOutput += $output
+          $allOutput += ""
         }
         
-        "" | Out-File -FilePath $summaryFile -Append
+        $allOutput += "``````"
         
-        # Add error details for failed devices
-        $failedDevices = $benchmarkResults | Where-Object { -not $_.Success }
-        if ($failedDevices) {
-          "Failed Devices:" | Out-File -FilePath $summaryFile -Append
-          foreach ($failed in $failedDevices) {
-            "• $($failed.Device): $($failed.ErrorMessage)" | Out-File -FilePath $summaryFile -Append
-          }
-        }
-        
-        # Add warnings for devices with parsing issues
-        $devicesWithParsingIssues = $benchmarkResults | Where-Object { 
-          $_.Success -and ($_.Iterations | Where-Object { -not $_.ParsedSuccessfully }).Count -gt 0 
-        }
-        if ($devicesWithParsingIssues) {
-          "" | Out-File -FilePath $summaryFile -Append
-          "Devices with Performance Parsing Issues:" | Out-File -FilePath $summaryFile -Append
-          foreach ($device in $devicesWithParsingIssues) {
-            $failedParsingCount = ($device.Iterations | Where-Object { -not $_.ParsedSuccessfully }).Count
-            "• $($device.Device): $failedParsingCount/$($device.Iterations.Count) iterations failed to parse metrics" | Out-File -FilePath $summaryFile -Append
-          }
-        }
-        
-        Write-Host "Benchmark Results Summary:"
-        Get-Content $summaryFile
-        
-        # Set environment variables for comparison step
-        $bestDevice = $benchmarkResults | Where-Object { $_.Success } | Sort-Object -Property AverageTokensPerSecond -Descending | Select-Object -First 1
-        if ($bestDevice) {
-          "BEST_DEVICE=$($bestDevice.Device)" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "BEST_TPS=$($bestDevice.AverageTokensPerSecond.ToString('F2'))" | Out-File -FilePath $env:GITHUB_ENV -Append
-        }
-
-    - name: Compare with Baseline
-      if: inputs.compare_with_baseline
-      shell: pwsh
-      run: |
-        $baselineDir = "baseline-performance"
-        $currentResults = "benchmark-results-win-x64-*.json"
-        
-        if (-not (Test-Path $baselineDir)) {
-          New-Item -ItemType Directory -Path $baselineDir -Force
-          Write-Host "No baseline data found. Current results will be used as baseline."
-          Copy-Item $currentResults $baselineDir/
-        } else {
-          Write-Host "Comparing with baseline performance..."
-          
-          # Load current and baseline results
-          $currentFile = Get-ChildItem $currentResults | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          $baselineFile = Get-ChildItem "$baselineDir/benchmark-results-win-x64-*.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          
-          if ($currentFile -and $baselineFile) {
-            $current = Get-Content $currentFile.FullName | ConvertFrom-Json
-            $baseline = Get-Content $baselineFile.FullName | ConvertFrom-Json
-            
-            Write-Host "Performance Comparison vs Baseline:"
-            Write-Host "===================================="
-            
-            foreach ($currentDevice in $current) {
-              if ($currentDevice.Success) {
-                $baselineDevice = $baseline | Where-Object { $_.Device -eq $currentDevice.Device -and $_.Success }
-                
-                if ($baselineDevice) {
-                  $tpsChange = (($currentDevice.AverageTokensPerSecond - $baselineDevice.AverageTokensPerSecond) / $baselineDevice.AverageTokensPerSecond) * 100
-                  $latencyChange = (($currentDevice.AverageFirstTokenLatencyMs - $baselineDevice.AverageFirstTokenLatencyMs) / $baselineDevice.AverageFirstTokenLatencyMs) * 100
-                  
-                  $tpsSymbol = if ($tpsChange -gt 5) { "📈" } elseif ($tpsChange -lt -5) { "📉" } else { "➡️" }
-                  $latencySymbol = if ($latencyChange -lt -5) { "📈" } elseif ($latencyChange -gt 5) { "📉" } else { "➡️" }
-                  
-                  Write-Host "$($currentDevice.Device):"
-                  Write-Host "  TPS: $($baselineDevice.AverageTokensPerSecond.ToString('F1')) → $($currentDevice.AverageTokensPerSecond.ToString('F1')) ($($tpsChange.ToString('F1'))%) $tpsSymbol"
-                  Write-Host "  Latency: $($baselineDevice.AverageFirstTokenLatencyMs.ToString('F0'))ms → $($currentDevice.AverageFirstTokenLatencyMs.ToString('F0'))ms ($($latencyChange.ToString('F1'))%) $latencySymbol"
-                } else {
-                  Write-Host "$($currentDevice.Device): No baseline data available"
-                }
-              }
-            }
-            
-            # Update baseline if current performance is significantly better
-            $shouldUpdateBaseline = $false
-            foreach ($currentDevice in $current) {
-              if ($currentDevice.Success) {
-                $baselineDevice = $baseline | Where-Object { $_.Device -eq $currentDevice.Device -and $_.Success }
-                if ($baselineDevice -and $currentDevice.AverageTokensPerSecond -gt ($baselineDevice.AverageTokensPerSecond * 1.05)) {
-                  $shouldUpdateBaseline = $true
-                  break
-                }
-              }
-            }
-            
-            if ($shouldUpdateBaseline) {
-              Write-Host ""
-              Write-Host "📊 Performance improvement detected. Updating baseline..."
-              Copy-Item $currentFile.FullName $baselineDir/
-            }
-          }
-        }
+        # Save the output to file for PR comment
+        $allOutput | Out-File -FilePath "benchmark-output.md" -Encoding UTF8
+        Write-Host "Benchmark finished. Output saved to benchmark-output.md"
 
     - name: Upload Benchmark Results
       uses: actions/upload-artifact@v4
       with:
         name: benchmark-results-win-x64
-        path: |
-          ./samples/QuickDemo/benchmark-results-*.json
-          ./samples/QuickDemo/benchmark-summary-*.txt
-
-    - name: Create Performance Summary
-      shell: pwsh
-      run: |
-        $summaryFile = Get-ChildItem "./samples/QuickDemo/benchmark-summary-win-x64-*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        
-        if ($summaryFile) {
-          Write-Host "## Performance Benchmark Results (Windows)" > performance-summary.md
-          Write-Host "" >> performance-summary.md
-          Write-Host "**Best Device:** $env:BEST_DEVICE ($env:BEST_TPS TPS)" >> performance-summary.md
-          Write-Host "" >> performance-summary.md
-          Write-Host "### Detailed Results" >> performance-summary.md
-          Write-Host "``````" >> performance-summary.md
-          Get-Content $summaryFile.FullName >> performance-summary.md
-          Write-Host "``````" >> performance-summary.md
-          
-          Write-Host ""
-          Get-Content performance-summary.md
-        }
+        path: ./samples/QuickDemo/benchmark-output.md
 
     - name: Comment on PR
       if: github.event_name == 'pull_request'
@@ -505,8 +334,8 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          if (fs.existsSync('performance-summary.md')) {
-            const summary = fs.readFileSync('performance-summary.md', 'utf8');
+          if (fs.existsSync('./samples/QuickDemo/benchmark-output.md')) {
+            const summary = fs.readFileSync('./samples/QuickDemo/benchmark-output.md', 'utf8');
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
