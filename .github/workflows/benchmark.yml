@@ -37,6 +37,31 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    - name: Install Visual C++ Redistributables
+      shell: pwsh
+      run: |
+        Write-Host "Installing Visual C++ Redistributables..."
+        
+        # Download and install VC++ redistributables
+        $vcRedistUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        $vcRedistPath = "vc_redist.x64.exe"
+        
+        try {
+          Invoke-WebRequest -Uri $vcRedistUrl -OutFile $vcRedistPath
+          
+          # Install silently
+          Start-Process -FilePath $vcRedistPath -ArgumentList "/install", "/quiet", "/norestart" -Wait
+          
+          Write-Host "✓ Visual C++ Redistributables installed successfully"
+        } catch {
+          Write-Host "Warning: Failed to install Visual C++ Redistributables: $($_.Exception.Message)"
+          Write-Host "This may cause native library loading issues"
+        } finally {
+          if (Test-Path $vcRedistPath) {
+            Remove-Item $vcRedistPath -Force
+          }
+        }
+
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -71,83 +96,51 @@ jobs:
       run: |
         Write-Host "Downloading OpenVINO GenAI Runtime for Windows..."
         
-        # Try multiple potential URLs for robustness
-        $urls = @(
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip",
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip"
-        )
-        
-        $downloaded = $false
+        # Use the known official download URL
+        $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64.zip"
         $output = "openvino_genai_runtime.zip"
         
-        foreach ($url in $urls) {
-          Write-Host "Trying: $url"
-          try {
-            Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
-            
-            # Verify the downloaded file is a valid ZIP
-            if (Test-Path $output -PathType Leaf) {
-              $fileInfo = Get-Item $output
-              if ($fileInfo.Length -gt 1MB) {
-                Write-Host "✓ Successfully downloaded from: $url"
-                $downloaded = $true
-                break
-              } else {
-                Write-Host "✗ Downloaded file too small: $($fileInfo.Length) bytes"
-                Remove-Item $output -ErrorAction SilentlyContinue
-              }
-            }
-          } catch {
-            Write-Host "✗ Failed to download from: $url - $($_.Exception.Message)"
-            Remove-Item $output -ErrorAction SilentlyContinue
-          }
-        }
+        Write-Host "Downloading from: $url"
         
-        if (-not $downloaded) {
-          Write-Host "❌ Failed to download OpenVINO runtime from any URL"
+        try {
+          Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
+          
+          # Verify the downloaded file
+          $fileInfo = Get-Item $output
+          if ($fileInfo.Length -lt 1MB) {
+            Write-Host "❌ Downloaded file too small: $($fileInfo.Length) bytes"
+            exit 1
+          }
+          
+          Write-Host "✓ Successfully downloaded ($($fileInfo.Length) bytes)"
+        } catch {
+          Write-Host "❌ Failed to download OpenVINO runtime: $($_.Exception.Message)"
           exit 1
         }
         
         Write-Host "Extracting runtime..."
         Expand-Archive -Path $output -DestinationPath "temp_extract" -Force
         
-        # Find the extracted directory (handle different naming conventions)
-        $extractedDirs = Get-ChildItem -Path "temp_extract" -Directory | Where-Object { $_.Name -like "openvino_genai*" }
+        # Expected directory structure: openvino_genai_windows_VERSION_x86_64/runtime/lib/intel64/Release
+        $expectedPath = "temp_extract/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64/runtime/lib/intel64/Release"
         
-        if ($extractedDirs.Count -eq 0) {
-          Write-Host "❌ Could not find extracted OpenVINO directory"
-          Get-ChildItem -Path "temp_extract" | Format-Table
+        if (-not (Test-Path $expectedPath)) {
+          Write-Host "❌ Expected OpenVINO runtime path not found: $expectedPath"
+          Write-Host "Available directories:"
+          Get-ChildItem -Path "temp_extract" -Recurse -Directory | Format-Table FullName
           exit 1
         }
         
-        $extractedDir = $extractedDirs[0].FullName
-        Write-Host "Found extracted directory: $($extractedDirs[0].Name)"
-        
-        # Create target directory
+        # Create target directory and copy libraries
         $nativePath = "build/native/runtimes/win-x64/native"
         New-Item -Path $nativePath -ItemType Directory -Force
         
-        # Try different potential library paths
-        if (Test-Path "$extractedDir/runtime/lib/intel64/Release") {
-          Copy-Item -Path "$extractedDir/runtime/lib/intel64/Release/*" -Destination $nativePath -Force
-        } elseif (Test-Path "$extractedDir/runtime/lib/intel64") {
-          Copy-Item -Path "$extractedDir/runtime/lib/intel64/*" -Destination $nativePath -Force
-        } elseif (Test-Path "$extractedDir/runtime/bin") {
-          Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination $nativePath -Force
-        } elseif (Test-Path "$extractedDir/bin") {
-          Copy-Item -Path "$extractedDir/bin/*" -Destination $nativePath -Force
-        } else {
-          # Fallback: recursively find and copy all DLLs
-          Write-Host "Warning: Standard paths not found, using fallback DLL search"
-          Get-ChildItem -Path $extractedDir -Recurse -Filter *.dll |
-            Where-Object { $_.DirectoryName -match 'Release' -or $_.DirectoryName -notmatch 'Debug' } |
-            Copy-Item -Destination $nativePath -Force
-          
-          # Also copy TBB if not already included
-          Get-ChildItem -Path $extractedDir -Recurse -Filter *tbb*.dll |
-            Copy-Item -Destination $nativePath -Force
-        }
+        Write-Host "Copying libraries from: $expectedPath"
+        Get-ChildItem -Path $expectedPath -Filter "*.dll" |
+          Where-Object { -not $_.Name.EndsWith('d.dll') } |
+          Copy-Item -Destination $nativePath -Force
         
+        # Clean up
         Remove-Item -Path $output, "temp_extract" -Recurse -Force
         Write-Host "✓ OpenVINO runtime setup completed"
 
@@ -274,28 +267,11 @@ jobs:
             Write-Host "Created directory: $targetPath"
           }
           
-          # Copy from nested directory structure to flat structure
-          Copy-Item -Path "$sourceRuntimePath/*" -Destination $targetPath -Recurse -Force
-          Write-Host "✓ Copied DLLs to: $targetPath"
-          
-          # Flatten the nested directory structure - copy DLLs from intel64/Release to target directory
-          $nestedPaths = @(
-            "$targetPath/intel64/Release",
-            "$targetPath/intel64/Debug"
-          )
-          
-          foreach ($nestedPath in $nestedPaths) {
-            if (Test-Path $nestedPath) {
-              Write-Host "  Flattening DLLs from: $nestedPath"
-              Copy-Item -Path "$nestedPath/*" -Destination $targetPath -Force
-            }
-          }
-          
-          # Remove the nested directories after flattening
-          if (Test-Path "$targetPath/intel64") {
-            Remove-Item -Path "$targetPath/intel64" -Recurse -Force
-            Write-Host "  Removed nested intel64 directory"
-          }
+          # Copy only release DLLs, excluding debug versions
+          Get-ChildItem -Path $sourceRuntimePath -Filter "*.dll" |
+            Where-Object { -not $_.Name.EndsWith('d.dll') } |
+            Copy-Item -Destination $targetPath -Force
+          Write-Host "✓ Copied release DLLs to: $targetPath"
           
           # Verify the copy
           if (Test-Path "$targetPath/openvino_genai_c.dll") {

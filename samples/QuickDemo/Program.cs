@@ -79,6 +79,82 @@ class Program
         {
             Console.WriteLine($"Error: {ex.Message}");
             Console.WriteLine("Make sure you have the required OpenVINO runtime installed.");
+            
+            // Provide detailed diagnostics for DLL loading issues
+            if (ex is DllNotFoundException || ex.Message.Contains("openvino_genai_c"))
+            {
+                Console.WriteLine();
+                Console.WriteLine("=== OpenVINO GenAI Diagnostic Information ===");
+                try
+                {
+                    var diagnosticInfo = OpenVINO.NET.GenAI.Native.NativeLibraryLoader.GetDiagnosticInfo();
+                    Console.WriteLine(diagnosticInfo);
+                }
+                catch (Exception diagnosticEx)
+                {
+                    Console.WriteLine($"Failed to get diagnostic info: {diagnosticEx.Message}");
+                }
+                
+                Console.WriteLine();
+                Console.WriteLine("=== Current Directory Files ===");
+                try
+                {
+                    var currentDir = Environment.CurrentDirectory;
+                    Console.WriteLine($"Current directory: {currentDir}");
+                    var dllFiles = Directory.GetFiles(currentDir, "*.dll", SearchOption.TopDirectoryOnly);
+                    if (dllFiles.Any())
+                    {
+                        Console.WriteLine("DLL files found:");
+                        foreach (var file in dllFiles.OrderBy(f => f))
+                        {
+                            var fileInfo = new FileInfo(file);
+                            Console.WriteLine($"  {Path.GetFileName(file)} ({fileInfo.Length} bytes)");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("No DLL files found in current directory.");
+                    }
+                }
+                catch (Exception dirEx)
+                {
+                    Console.WriteLine($"Failed to list directory contents: {dirEx.Message}");
+                }
+                
+                Console.WriteLine();
+                Console.WriteLine("=== Runtime Directory Files ===");
+                try
+                {
+                    var runtimeDir = Path.Combine(Environment.CurrentDirectory, "runtimes", "win-x64", "native");
+                    if (Directory.Exists(runtimeDir))
+                    {
+                        Console.WriteLine($"Runtime directory: {runtimeDir}");
+                        var runtimeFiles = Directory.GetFiles(runtimeDir, "*.dll", SearchOption.TopDirectoryOnly);
+                        if (runtimeFiles.Any())
+                        {
+                            Console.WriteLine("Runtime DLL files found:");
+                            foreach (var file in runtimeFiles.OrderBy(f => f))
+                            {
+                                var fileInfo = new FileInfo(file);
+                                Console.WriteLine($"  {Path.GetFileName(file)} ({fileInfo.Length} bytes)");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("No DLL files found in runtime directory.");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Runtime directory does not exist: {runtimeDir}");
+                    }
+                }
+                catch (Exception runtimeEx)
+                {
+                    Console.WriteLine($"Failed to list runtime directory contents: {runtimeEx.Message}");
+                }
+            }
+            
             Environment.Exit(1);
         }
     }
