@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       devices:
-        description: 'Devices to benchmark (comma-separated: CPU,GPU,NPU)'
+        description: 'Devices to benchmark (comma-separated: CPU only on GitHub runners)'
         required: false
-        default: 'CPU,GPU,NPU'
+        default: 'CPU'
         type: string
       iterations:
         description: 'Number of iterations per device'
@@ -32,15 +32,7 @@ env:
 jobs:
   benchmark:
     name: Performance Benchmark
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            runtime: linux-x64
-          - os: windows-latest
-            runtime: win-x64
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
@@ -71,23 +63,22 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ./baseline-performance
-        key: baseline-performance-${{ matrix.runtime }}-v1
+        key: baseline-performance-win-x64-v1
         restore-keys: |
-          baseline-performance-${{ matrix.runtime }}-
+          baseline-performance-win-x64-
 
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
 
-    - name: Cache OpenVINO Runtime (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Cache OpenVINO Runtime
       id: cache-openvino-windows
       uses: actions/cache@v4
       with:
         path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
         key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
 
-    - name: Download OpenVINO Runtime (Windows)
-      if: matrix.os == 'windows-latest' && steps.cache-openvino-windows.outputs.cache-hit != 'true'
+    - name: Download OpenVINO Runtime
+      if: steps.cache-openvino-windows.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         Write-Host "Downloading OpenVINO GenAI Runtime for Windows..."
@@ -161,141 +152,58 @@ jobs:
         Remove-Item -Path $output, "temp_extract" -Recurse -Force
         Write-Host "✓ OpenVINO runtime setup completed"
 
-    - name: Cache OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      id: cache-openvino-linux
-      uses: actions/cache@v4
-      with:
-        path: build/native/runtimes/linux-x64/native
-        key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
-
-    - name: Download OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
-      run: |
-        echo "Downloading OpenVINO GenAI Runtime for Linux..."
-        
-        # Try multiple potential URLs for robustness
-        urls=(
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_runtime_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
-        )
-        
-        downloaded=false
-        for url in "${urls[@]}"; do
-          echo "Trying: $url"
-          if wget -q --user-agent="OpenVINO.NET/1.0" -O openvino_genai_runtime.tar.gz "$url"; then
-            # Verify the downloaded file is valid
-            if file openvino_genai_runtime.tar.gz | grep -q "gzip compressed"; then
-              echo "✓ Successfully downloaded from: $url"
-              downloaded=true
-              break
-            else
-              echo "✗ Invalid file format from: $url"
-              rm -f openvino_genai_runtime.tar.gz
-            fi
-          else
-            echo "✗ Failed to download from: $url"
-          fi
-        done
-        
-        if [ "$downloaded" = false ]; then
-          echo "❌ Failed to download OpenVINO runtime from any URL"
-          exit 1
-        fi
-        
-        echo "Extracting runtime..."
-        tar -xzf openvino_genai_runtime.tar.gz
-        
-        # Find the extracted directory (handle different naming conventions)
-        extracted_dir=""
-        for dir in openvino_genai_*; do
-          if [ -d "$dir" ]; then
-            extracted_dir="$dir"
-            break
-          fi
-        done
-        
-        if [ -z "$extracted_dir" ]; then
-          echo "❌ Could not find extracted OpenVINO directory"
-          ls -la
-          exit 1
-        fi
-        
-        echo "Found extracted directory: $extracted_dir"
-        
-        # Create target directory and copy files preserving symlinks
-        mkdir -p build/native/runtimes/linux-x64/native
-        
-        # Try different potential library paths
-        if [ -d "$extracted_dir/runtime/lib/intel64" ]; then
-          cp -a "$extracted_dir/runtime/lib/intel64/"* build/native/runtimes/linux-x64/native/
-        elif [ -d "$extracted_dir/lib" ]; then
-          cp -a "$extracted_dir/lib/"* build/native/runtimes/linux-x64/native/
-        else
-          echo "❌ Could not find library directory in $extracted_dir"
-          ls -la "$extracted_dir"
-          exit 1
-        fi
-        
-        rm -rf openvino_genai_runtime.tar.gz "$extracted_dir"
-        echo "✓ OpenVINO runtime setup completed"
-
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
 
     - name: Download Benchmark Model
       working-directory: ./samples/QuickDemo
+      shell: pwsh
       run: |
-        mkdir -p Models
-        cd Models
+        New-Item -ItemType Directory -Path "Models" -Force
+        Set-Location Models
         
         # Use model name from input or default
-        MODEL_NAME="${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
-        MODEL_DIR=$(echo "$MODEL_NAME" | cut -d'/' -f2)
+        $MODEL_NAME = "${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
+        $MODEL_DIR = $MODEL_NAME.Split('/')[1]
         
-        if [ ! -d "$MODEL_DIR" ] || [ ! -f "$MODEL_DIR/openvino_model.xml" ]; then
-          echo "Downloading model: $MODEL_NAME"
+        if ((-not (Test-Path $MODEL_DIR)) -or (-not (Test-Path "$MODEL_DIR/openvino_model.xml"))) {
+          Write-Host "Downloading model: $MODEL_NAME"
           
-          mkdir -p "$MODEL_DIR"
-          cd "$MODEL_DIR"
+          New-Item -ItemType Directory -Path $MODEL_DIR -Force
+          Set-Location $MODEL_DIR
           
           # Download key files
-          for file in openvino_model.xml openvino_model.bin openvino_tokenizer.xml openvino_tokenizer.bin openvino_detokenizer.xml openvino_detokenizer.bin config.json generation_config.json; do
-            echo "Downloading $file..."
-            curl -L -f -o "$file" "https://huggingface.co/$MODEL_NAME/resolve/main/$file" --user-agent "OpenVINO.NET/1.0" || echo "Warning: Failed to download $file (may be optional)"
-          done
+          $files = @("openvino_model.xml", "openvino_model.bin", "openvino_tokenizer.xml", "openvino_tokenizer.bin", "openvino_detokenizer.xml", "openvino_detokenizer.bin", "config.json", "generation_config.json")
           
-          cd ..
-          echo "✓ Model download completed"
-        else
-          echo "✓ Model already cached"
-        fi
-      shell: bash
+          foreach ($file in $files) {
+            Write-Host "Downloading $file..."
+            try {
+              Invoke-WebRequest -Uri "https://huggingface.co/$MODEL_NAME/resolve/main/$file" -OutFile $file -UserAgent "OpenVINO.NET/1.0"
+            } catch {
+              Write-Host "Warning: Failed to download $file (may be optional)"
+            }
+          }
+          
+          Set-Location ..
+          Write-Host "✓ Model download completed"
+        } else {
+          Write-Host "✓ Model already cached"
+        }
 
     - name: Set Model Path Environment
+      shell: pwsh
       run: |
-        MODEL_NAME="${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
-        MODEL_DIR=$(echo "$MODEL_NAME" | cut -d'/' -f2)
-        MODEL_PATH="$(pwd)/samples/QuickDemo/Models/$MODEL_DIR"
-        echo "QUICKDEMO_MODEL_PATH=$MODEL_PATH" >> $GITHUB_ENV
-      shell: bash
+        $MODEL_NAME = "${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
+        $MODEL_DIR = $MODEL_NAME.Split('/')[1]
+        $MODEL_PATH = "$(Get-Location)/samples/QuickDemo/Models/$MODEL_DIR"
+        "QUICKDEMO_MODEL_PATH=$MODEL_PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-    - name: Setup Memory Monitoring (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        # Install system monitoring tools
-        sudo apt-get update
-        sudo apt-get install -y htop sysstat bc
-        echo "✓ Memory monitoring tools installed"
-
-    - name: Run Performance Benchmark (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Run Performance Benchmark
       working-directory: ./samples/QuickDemo
       shell: pwsh
       run: |
-        $devices = "${{ inputs.devices || 'CPU,GPU,NPU' }}" -split ','
+        # Note: GitHub hosted runners only have CPU available, no GPU/NPU
+        $devices = "${{ inputs.devices || 'CPU' }}" -split ','
         $iterations = [int]"${{ inputs.iterations || 3 }}"
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
         $benchmarkResults = @()
@@ -303,7 +211,7 @@ jobs:
         Write-Host "Performance Benchmark - $timestamp"
         Write-Host "Devices: $($devices -join ', ')"
         Write-Host "Iterations per device: $iterations"
-        Write-Host "Platform: ${{ matrix.runtime }}"
+        Write-Host "Platform: win-x64"
         Write-Host ""
         
         foreach ($device in $devices) {
@@ -313,7 +221,7 @@ jobs:
           
           $deviceResults = @{
             Device = $device
-            Platform = "${{ matrix.runtime }}"
+            Platform = "win-x64"
             Timestamp = $timestamp
             Iterations = @()
             Success = $false
@@ -324,21 +232,10 @@ jobs:
             Write-Host "Iteration $i/$iterations..."
             
             try {
-              # Start memory monitoring in background
-              if ("${{ matrix.os }}" -eq "ubuntu-latest") {
-                Start-Process -FilePath "bash" -ArgumentList @("-c", "while sleep 1; do echo `$(date): `$(free -m | grep '^Mem:' | awk '{print `$3}') MB; done > memory-$device-$i.log") -NoNewWindow
-                $memPid = $LASTEXITCODE
-              }
-              
               $startTime = Get-Date
               $output = dotnet run --configuration Release -- --device $device 2>&1
               $endTime = Get-Date
               $exitCode = $LASTEXITCODE
-              
-              # Stop memory monitoring
-              if ("${{ matrix.os }}" -eq "ubuntu-latest" -and $memPid) {
-                Stop-Process -Id $memPid -ErrorAction SilentlyContinue
-              }
               
               if ($exitCode -eq 0) {
                 # Parse performance metrics
@@ -351,24 +248,13 @@ jobs:
                   TokensPerSecond = if ($tpsMatch.Success) { [double]$tpsMatch.Groups[1].Value } else { 0 }
                   FirstTokenLatencyMs = if ($latencyMatch.Success) { [int]$latencyMatch.Groups[1].Value } else { 0 }
                   TotalTimeMs = ($endTime - $startTime).TotalMilliseconds
-                  MemoryUsageMB = 0  # Will be updated from memory log if available
-                }
-                
-                # Parse memory usage if available
-                if ("${{ matrix.os }}" -eq "ubuntu-latest" -and (Test-Path "memory-$device-$i.log")) {
-                  $memData = Get-Content "memory-$device-$i.log" | ForEach-Object { 
-                    if ($_ -match ': (\d+) MB') { [int]$matches[1] } 
-                  }
-                  if ($memData) {
-                    $iterationResult.MemoryUsageMB = ($memData | Measure-Object -Maximum).Maximum
-                  }
-                  Remove-Item "memory-$device-$i.log" -ErrorAction SilentlyContinue
+                  MemoryUsageMB = 0
                 }
                 
                 $deviceResults.Iterations += $iterationResult
                 $deviceResults.Success = $true
                 
-                Write-Host "  ✓ TPS: $($iterationResult.TokensPerSecond), Latency: $($iterationResult.FirstTokenLatencyMs)ms, Memory: $($iterationResult.MemoryUsageMB)MB"
+                Write-Host "  ✓ TPS: $($iterationResult.TokensPerSecond), Latency: $($iterationResult.FirstTokenLatencyMs)ms"
               } else {
                 Write-Host "  ✗ Failed with exit code: $exitCode"
                 $deviceResults.ErrorMessage = "Exit code: $exitCode, Output: $output"
@@ -392,7 +278,6 @@ jobs:
             
             Write-Host "  Average TPS: $($deviceResults.AverageTokensPerSecond.ToString('F2'))"
             Write-Host "  Average Latency: $($deviceResults.AverageFirstTokenLatencyMs.ToString('F0'))ms"
-            Write-Host "  Max Memory: $($deviceResults.MaxMemoryUsageMB)MB"
           }
           
           $benchmarkResults += $deviceResults
@@ -400,25 +285,24 @@ jobs:
         }
         
         # Save detailed results to JSON
-        $resultFile = "benchmark-results-${{ matrix.runtime }}-$timestamp.json"
+        $resultFile = "benchmark-results-win-x64-$timestamp.json"
         $benchmarkResults | ConvertTo-Json -Depth 10 | Out-File -FilePath $resultFile
         
         # Create summary table
-        $summaryFile = "benchmark-summary-${{ matrix.runtime }}-$timestamp.txt"
-        "Performance Benchmark Summary - ${{ matrix.runtime }}" | Out-File -FilePath $summaryFile
+        $summaryFile = "benchmark-summary-win-x64-$timestamp.txt"
+        "Performance Benchmark Summary - win-x64" | Out-File -FilePath $summaryFile
         "Generated: $timestamp" | Out-File -FilePath $summaryFile -Append
         "" | Out-File -FilePath $summaryFile -Append
-        "Device       | Status | Avg TPS | Avg Latency | Max Memory | Iterations" | Out-File -FilePath $summaryFile -Append
-        "------------ | ------ | ------- | ----------- | ---------- | ----------" | Out-File -FilePath $summaryFile -Append
+        "Device       | Status | Avg TPS | Avg Latency | Iterations" | Out-File -FilePath $summaryFile -Append
+        "------------ | ------ | ------- | ----------- | ----------" | Out-File -FilePath $summaryFile -Append
         
         foreach ($result in $benchmarkResults) {
           $status = if ($result.Success) { "✓" } else { "✗" }
           $avgTps = if ($result.Success) { $result.AverageTokensPerSecond.ToString("F1") } else { "N/A" }
           $avgLatency = if ($result.Success) { $result.AverageFirstTokenLatencyMs.ToString("F0") + "ms" } else { "N/A" }
-          $maxMemory = if ($result.Success -and $result.MaxMemoryUsageMB -gt 0) { $result.MaxMemoryUsageMB.ToString() + "MB" } else { "N/A" }
           $iterCount = if ($result.Success) { $result.Iterations.Count } else { "0" }
           
-          "$($result.Device.PadRight(12)) | $($status.PadRight(6)) | $($avgTps.PadRight(7)) | $($avgLatency.PadRight(11)) | $($maxMemory.PadRight(10)) | $iterCount" | Out-File -FilePath $summaryFile -Append
+          "$($result.Device.PadRight(12)) | $($status.PadRight(6)) | $($avgTps.PadRight(7)) | $($avgLatency.PadRight(11)) | $iterCount" | Out-File -FilePath $summaryFile -Append
         }
         
         "" | Out-File -FilePath $summaryFile -Append
@@ -442,134 +326,12 @@ jobs:
           "BEST_TPS=$($bestDevice.AverageTokensPerSecond.ToString('F2'))" | Out-File -FilePath $env:GITHUB_ENV -Append
         }
 
-    - name: Run Performance Benchmark (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      working-directory: ./samples/QuickDemo
-      shell: bash
-      run: |
-        devices="${{ inputs.devices || 'CPU,GPU,NPU' }}"
-        iterations="${{ inputs.iterations || 3 }}"
-        timestamp=$(date +%Y%m%d-%H%M%S)
-        runtime="${{ matrix.runtime }}"
-        
-        echo "Performance Benchmark - $timestamp"
-        echo "Devices: $devices"
-        echo "Iterations per device: $iterations"
-        echo "Platform: $runtime"
-        echo ""
-        
-        # Create results file
-        result_file="benchmark-results-$runtime-$timestamp.json"
-        summary_file="benchmark-summary-$runtime-$timestamp.txt"
-        
-        echo "Performance Benchmark Summary - $runtime" > "$summary_file"
-        echo "Generated: $timestamp" >> "$summary_file"
-        echo "" >> "$summary_file"
-        echo "Device       | Status | Avg TPS | Avg Latency | Max Memory | Iterations" >> "$summary_file"
-        echo "------------ | ------ | ------- | ----------- | ---------- | ----------" >> "$summary_file"
-        
-        # Initialize JSON results
-        echo "[" > "$result_file"
-        first_device=true
-        
-        # Convert comma-separated devices to array
-        IFS=',' read -ra device_array <<< "$devices"
-        
-        for device in "${device_array[@]}"; do
-          device=$(echo "$device" | xargs)  # trim whitespace
-          echo "Benchmarking device: $device"
-          echo "================================"
-          
-          success=false
-          total_tps=0
-          total_latency=0
-          successful_iterations=0
-          
-          for ((i=1; i<=iterations; i++)); do
-            echo "Iteration $i/$iterations..."
-            
-            start_time=$(date +%s%3N)
-            if output=$(dotnet run --configuration Release -- --device "$device" 2>&1); then
-              end_time=$(date +%s%3N)
-              total_time=$((end_time - start_time))
-              
-              # Extract performance metrics
-              if [[ $output =~ Performance:[[:space:]]+([0-9]+\.[0-9]+)[[:space:]]+tokens/sec ]]; then
-                tps="${BASH_REMATCH[1]}"
-                total_tps=$(echo "$total_tps + $tps" | bc -l)
-                ((successful_iterations++))
-              else
-                tps="0"
-              fi
-              
-              if [[ $output =~ First\ token:[[:space:]]+([0-9]+)ms ]]; then
-                latency="${BASH_REMATCH[1]}"
-                total_latency=$((total_latency + latency))
-              else
-                latency="0"
-              fi
-              
-              echo "  ✓ TPS: $tps, Latency: ${latency}ms"
-              success=true
-            else
-              echo "  ✗ Failed: $output"
-              break
-            fi
-          done
-          
-          # Calculate averages
-          if [[ $success == true && $successful_iterations -gt 0 ]]; then
-            avg_tps=$(echo "scale=2; $total_tps / $successful_iterations" | bc -l)
-            avg_latency=$((total_latency / successful_iterations))
-            status="✓"
-          else
-            avg_tps="N/A"
-            avg_latency="N/A"
-            status="✗"
-          fi
-          
-          # Add to summary
-          printf "%-12s | %-6s | %-7s | %-11s | %-10s | %s\n" \
-            "$device" "$status" "$avg_tps" "${avg_latency}ms" "N/A" "$successful_iterations" >> "$summary_file"
-          
-          # Add to JSON (simplified)
-          if [[ $first_device == false ]]; then
-            echo "," >> "$result_file"
-          fi
-          first_device=false
-          
-          cat >> "$result_file" << EOF
-  {
-    "Device": "$device",
-    "Platform": "$runtime",
-    "Timestamp": "$timestamp",
-    "Success": $success,
-    "AverageTokensPerSecond": ${avg_tps:-0},
-    "AverageFirstTokenLatencyMs": ${avg_latency:-0},
-    "Iterations": []
-  }
-EOF
-          
-          echo ""
-        done
-        
-        echo "]" >> "$result_file"
-        
-        echo "Benchmark Results Summary:"
-        cat "$summary_file"
-        
-        # Set environment variables for comparison step
-        if [[ $success == true ]]; then
-          echo "BEST_DEVICE=$device" >> $GITHUB_ENV
-          echo "BEST_TPS=$avg_tps" >> $GITHUB_ENV
-        fi
-
-    - name: Compare with Baseline (Windows)
-      if: inputs.compare_with_baseline && matrix.os == 'windows-latest'
+    - name: Compare with Baseline
+      if: inputs.compare_with_baseline
       shell: pwsh
       run: |
         $baselineDir = "baseline-performance"
-        $currentResults = "benchmark-results-${{ matrix.runtime }}-*.json"
+        $currentResults = "benchmark-results-win-x64-*.json"
         
         if (-not (Test-Path $baselineDir)) {
           New-Item -ItemType Directory -Path $baselineDir -Force
@@ -580,7 +342,7 @@ EOF
           
           # Load current and baseline results
           $currentFile = Get-ChildItem $currentResults | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          $baselineFile = Get-ChildItem "$baselineDir/benchmark-results-${{ matrix.runtime }}-*.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $baselineFile = Get-ChildItem "$baselineDir/benchmark-results-win-x64-*.json" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           
           if ($currentFile -and $baselineFile) {
             $current = Get-Content $currentFile.FullName | ConvertFrom-Json
@@ -629,40 +391,21 @@ EOF
           }
         }
 
-    - name: Compare with Baseline (Linux)
-      if: inputs.compare_with_baseline && matrix.os == 'ubuntu-latest'
-      shell: bash
-      run: |
-        baseline_dir="baseline-performance"
-        current_results="benchmark-results-${{ matrix.runtime }}-*.json"
-        
-        if [ ! -d "$baseline_dir" ]; then
-          mkdir -p "$baseline_dir"
-          echo "No baseline data found. Current results will be used as baseline."
-          cp $current_results "$baseline_dir/"
-        else
-          echo "Comparing with baseline performance..."
-          echo "Note: Detailed comparison not implemented for Linux version"
-          # For now, just update the baseline
-          cp $current_results "$baseline_dir/"
-        fi
-
     - name: Upload Benchmark Results
       uses: actions/upload-artifact@v4
       with:
-        name: benchmark-results-${{ matrix.runtime }}
+        name: benchmark-results-win-x64
         path: |
           ./samples/QuickDemo/benchmark-results-*.json
           ./samples/QuickDemo/benchmark-summary-*.txt
 
-    - name: Create Performance Summary (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Create Performance Summary
       shell: pwsh
       run: |
-        $summaryFile = Get-ChildItem "./samples/QuickDemo/benchmark-summary-${{ matrix.runtime }}-*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        $summaryFile = Get-ChildItem "./samples/QuickDemo/benchmark-summary-win-x64-*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         
         if ($summaryFile) {
-          Write-Host "## Performance Benchmark Results (${{ matrix.runtime }})" > performance-summary.md
+          Write-Host "## Performance Benchmark Results (Windows)" > performance-summary.md
           Write-Host "" >> performance-summary.md
           Write-Host "**Best Device:** $env:BEST_DEVICE ($env:BEST_TPS TPS)" >> performance-summary.md
           Write-Host "" >> performance-summary.md
@@ -674,26 +417,6 @@ EOF
           Write-Host ""
           Get-Content performance-summary.md
         }
-
-    - name: Create Performance Summary (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      shell: bash
-      run: |
-        summary_file=$(ls -t ./samples/QuickDemo/benchmark-summary-${{ matrix.runtime }}-*.txt 2>/dev/null | head -1)
-        
-        if [ -n "$summary_file" ]; then
-          echo "## Performance Benchmark Results (${{ matrix.runtime }})" > performance-summary.md
-          echo "" >> performance-summary.md
-          echo "**Best Device:** $BEST_DEVICE ($BEST_TPS TPS)" >> performance-summary.md
-          echo "" >> performance-summary.md
-          echo "### Detailed Results" >> performance-summary.md
-          echo '```' >> performance-summary.md
-          cat "$summary_file" >> performance-summary.md
-          echo '```' >> performance-summary.md
-          
-          echo ""
-          cat performance-summary.md
-        fi
 
     - name: Comment on PR
       if: github.event_name == 'pull_request'

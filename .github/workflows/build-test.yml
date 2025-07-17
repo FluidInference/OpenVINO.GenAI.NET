@@ -200,14 +200,6 @@ jobs:
         name: test-results-${{ matrix.runtime }}
         path: ./coverage
 
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v4
-      if: matrix.os == 'ubuntu-latest'
-      with:
-        directory: ./coverage
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
-
     - name: Build artifacts
       run: dotnet publish samples/QuickDemo/QuickDemo.csproj --configuration Release --runtime ${{ matrix.runtime }} --self-contained false --output ./artifacts/${{ matrix.runtime }}
 
