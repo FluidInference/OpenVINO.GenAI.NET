@@ -190,6 +190,15 @@ jobs:
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore
 
+    - name: Set LD_LIBRARY_PATH for Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        LIBRARY_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
+        echo "LD_LIBRARY_PATH=$LIBRARY_PATH:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "Setting LD_LIBRARY_PATH to: $LIBRARY_PATH"
+        ls -la "$LIBRARY_PATH" | grep -E "(libtbb|libopenvino)" | head -10
+      shell: bash
+
     - name: Run unit tests
       run: dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
 

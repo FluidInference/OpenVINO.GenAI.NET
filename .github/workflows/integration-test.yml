@@ -265,6 +265,15 @@ jobs:
         echo "QUICKDEMO_MODEL_PATH=$MODEL_PATH" >> $GITHUB_ENV
       shell: bash
 
+    - name: Set Linux Library Path (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        LIBRARY_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
+        echo "LD_LIBRARY_PATH=$LIBRARY_PATH:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "Setting LD_LIBRARY_PATH to: $LIBRARY_PATH"
+        ls -la "$LIBRARY_PATH" | grep -E "(libtbb|libopenvino)" | head -10
+      shell: bash
+
     - name: Run Integration Tests
       run: dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj --configuration Release --verbosity normal --filter "Category=Integration"
 
@@ -327,6 +336,9 @@ jobs:
       working-directory: ./samples/QuickDemo
       shell: bash
       run: |
+        # Ensure LD_LIBRARY_PATH is set for device testing
+        export LD_LIBRARY_PATH="$(pwd)/../../build/native/runtimes/linux-x64/native:$LD_LIBRARY_PATH"
+        
         IFS=',' read -ra devices <<< "${{ inputs.test_devices || 'CPU,GPU,NPU' }}"
         results=()
         
@@ -367,8 +379,14 @@ jobs:
 
     - name: Run Benchmark Test
       working-directory: ./samples/QuickDemo
-      run: dotnet run --configuration Release -- --benchmark
+      run: |
+        # Ensure LD_LIBRARY_PATH is set for benchmarking on Linux
+        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          export LD_LIBRARY_PATH="$(pwd)/../../build/native/runtimes/linux-x64/native:$LD_LIBRARY_PATH"
+        fi
+        dotnet run --configuration Release -- --benchmark
       continue-on-error: true
+      shell: bash
 
     - name: Upload Test Results
       uses: actions/upload-artifact@v4

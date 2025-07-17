@@ -241,10 +241,22 @@ jobs:
               $endTime = Get-Date
               $exitCode = $LASTEXITCODE
               
+              # Debug: Show full output and exit code
+              Write-Host "  Debug - Exit code: $exitCode"
+              Write-Host "  Debug - Full output:"
+              Write-Host "  $output"
+              Write-Host "  ---"
+              
               if ($exitCode -eq 0) {
                 # Parse performance metrics
-                $tpsMatch = [regex]::Match($output, 'Performance:\s+(\d+\.\d+)\s+tokens/sec')
+                $tpsMatch = [regex]::Match($output, 'Performance:\s+(\d+(?:\.\d+)?)\s+tokens/sec')
                 $latencyMatch = [regex]::Match($output, 'First token:\s+(\d+)ms')
+                
+                # Debug: Show what we're trying to parse
+                Write-Host "  Debug - Output to parse:"
+                Write-Host "  $output"
+                Write-Host "  TPS Match: $($tpsMatch.Success), Value: $($tpsMatch.Groups[1].Value)"
+                Write-Host "  Latency Match: $($latencyMatch.Success), Value: $($latencyMatch.Groups[1].Value)"
                 
                 $iterationResult = @{
                   Iteration = $i
@@ -261,6 +273,7 @@ jobs:
                 Write-Host "  ✓ TPS: $($iterationResult.TokensPerSecond), Latency: $($iterationResult.FirstTokenLatencyMs)ms"
               } else {
                 Write-Host "  ✗ Failed with exit code: $exitCode"
+                Write-Host "  Output: $output"
                 $deviceResults.ErrorMessage = "Exit code: $exitCode, Output: $output"
                 break
               }
