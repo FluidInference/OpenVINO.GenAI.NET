@@ -44,14 +44,20 @@ Create a comprehensive C# wrapper for OpenVINO and OpenVINO GenAI C code to make
 # Build entire solution
 dotnet build OpenVINO.NET.sln
 
-# Run QuickDemo (default CPU)
+# Run QuickDemo (default CPU) - Linux requires LD_LIBRARY_PATH
+cd samples/QuickDemo/bin/Debug/net8.0 && LD_LIBRARY_PATH=. dotnet QuickDemo.dll
+
+# Alternative: Build and run from project directory
+dotnet build samples/QuickDemo && cd samples/QuickDemo/bin/Debug/net8.0 && LD_LIBRARY_PATH=. dotnet QuickDemo.dll
+
+# Run on specific device (Linux)
+cd samples/QuickDemo/bin/Debug/net8.0 && LD_LIBRARY_PATH=. dotnet QuickDemo.dll --device GPU
+
+# Benchmark all devices (Linux)
+cd samples/QuickDemo/bin/Debug/net8.0 && LD_LIBRARY_PATH=. dotnet QuickDemo.dll --benchmark
+
+# Windows (no special environment needed)
 dotnet run --project samples/QuickDemo
-
-# Run on specific device
-dotnet run --project samples/QuickDemo -- --device GPU
-
-# Benchmark all devices
-dotnet run --project samples/QuickDemo -- --benchmark
 ```
 
 ## Key Configuration Values
@@ -70,6 +76,13 @@ dotnet run --project samples/QuickDemo -- --benchmark
 4. "Describe the process of making coffee:"
 
 ## Common Issues and Solutions
+
+### Native Library Loading (Updated 2025.2)
+- **Approach**: Simplified to use standard .NET library resolution
+- **Windows**: Automatic loading via SetDllDirectory() API
+- **Linux**: Requires LD_LIBRARY_PATH=. when running from output directory
+- **Libraries**: Uses official OpenVINO GenAI C API (`openvino_genai_c.dll/.so`)
+- **Dependencies**: All dependencies deployed via MSBuild targets
 
 ### .NET 8 Features
 - **Modern C# Features**: Takes advantage of latest language features and performance improvements

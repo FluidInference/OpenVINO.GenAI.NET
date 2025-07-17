@@ -123,35 +123,18 @@ jobs:
         $extractedDir = $extractedDirs[0].FullName
         Write-Host "Found extracted directory: $($extractedDirs[0].Name)"
         
-        # Create target directory and copy files
-        New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
-
-        # Copy main OpenVINO DLLs - try common structures
-        $ovPaths = @(
-          "$extractedDir/runtime/bin/intel64/Release",
-          "$extractedDir/bin/intel64/Release"
-        )
-
-        foreach ($path in $ovPaths) {
-          if (Test-Path $path) {
-            Copy-Item -Path "$path/*.dll" -Destination "build/native/runtimes/win-x64/native/" -Force
-            Write-Host "✓ Copied OpenVINO DLLs from $path"
-          }
-        }
-
-        # Copy TBB DLLs - try common locations
-        $tbbPaths = @(
-          "$extractedDir/runtime/3rdparty/tbb/bin",
-          "$extractedDir/3rdparty/tbb/bin"
-        )
-
-        foreach ($path in $tbbPaths) {
-          if (Test-Path $path) {
-            Copy-Item -Path "$path/*.dll" -Destination "build/native/runtimes/win-x64/native/" -Force
-            Write-Host "✓ Copied TBB DLLs from $path"
-            break  # Assuming only one tbb location
-          }
-        }
+        # Create target directory
+        $nativePath = "build/native/runtimes/win-x64/native"
+        New-Item -Path $nativePath -ItemType Directory -Force
+        
+        # Recursively find and copy all DLLs, flattening the structure, preferring Release if available
+        Get-ChildItem -Path $extractedDir -Recurse -Filter *.dll |
+          Where-Object { $_.DirectoryName -match 'Release' -or $_.DirectoryName -notmatch 'Debug' } |
+          Copy-Item -Destination $nativePath -Force
+        
+        # Also copy TBB if not already included
+        Get-ChildItem -Path $extractedDir -Recurse -Filter *tbb*.dll |
+          Copy-Item -Destination $nativePath -Force
         
         Remove-Item -Path $output, "temp_extract" -Recurse -Force
         Write-Host "✓ OpenVINO runtime setup completed"
@@ -192,6 +175,7 @@ jobs:
             Write-Host ""
             Write-Host "❌ Missing DLLs: $($missingDlls -join ', ')"
             Write-Host "This will cause runtime failures"
+            exit 1
           }
         } else {
           Write-Host "❌ Runtime directory not found: $runtimePath"
