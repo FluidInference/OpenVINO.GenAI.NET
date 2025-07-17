@@ -101,13 +101,24 @@ jobs:
         New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
         
         # Try different potential library paths
-        if (Test-Path "$extractedDir/runtime/bin") {
+        if (Test-Path "$extractedDir/runtime/lib/intel64/Release") {
+          Copy-Item -Path "$extractedDir/runtime/lib/intel64/Release/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
+        } elseif (Test-Path "$extractedDir/runtime/lib/intel64") {
+          Copy-Item -Path "$extractedDir/runtime/lib/intel64/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
+        } elseif (Test-Path "$extractedDir/runtime/bin") {
           Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
         } elseif (Test-Path "$extractedDir/bin") {
           Copy-Item -Path "$extractedDir/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
         } else {
           Write-Host "❌ Could not find binary directory in extracted folder"
-          Get-ChildItem -Path $extractedDir | Format-Table
+          Write-Host "Searched paths:"
+          Write-Host "  - $extractedDir/runtime/lib/intel64/Release"
+          Write-Host "  - $extractedDir/runtime/lib/intel64"
+          Write-Host "  - $extractedDir/runtime/bin"
+          Write-Host "  - $extractedDir/bin"
+          Write-Host ""
+          Write-Host "Directory structure:"
+          Get-ChildItem -Path $extractedDir -Recurse -Directory | Select-Object -First 20 | Format-Table FullName
           exit 1
         }
         

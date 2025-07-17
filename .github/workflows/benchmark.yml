@@ -127,14 +127,26 @@ jobs:
         $nativePath = "build/native/runtimes/win-x64/native"
         New-Item -Path $nativePath -ItemType Directory -Force
         
-        # Recursively find and copy all DLLs, flattening the structure, preferring Release if available
-        Get-ChildItem -Path $extractedDir -Recurse -Filter *.dll |
-          Where-Object { $_.DirectoryName -match 'Release' -or $_.DirectoryName -notmatch 'Debug' } |
-          Copy-Item -Destination $nativePath -Force
-        
-        # Also copy TBB if not already included
-        Get-ChildItem -Path $extractedDir -Recurse -Filter *tbb*.dll |
-          Copy-Item -Destination $nativePath -Force
+        # Try different potential library paths
+        if (Test-Path "$extractedDir/runtime/lib/intel64/Release") {
+          Copy-Item -Path "$extractedDir/runtime/lib/intel64/Release/*" -Destination $nativePath -Recurse -Force
+        } elseif (Test-Path "$extractedDir/runtime/lib/intel64") {
+          Copy-Item -Path "$extractedDir/runtime/lib/intel64/*" -Destination $nativePath -Recurse -Force
+        } elseif (Test-Path "$extractedDir/runtime/bin") {
+          Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination $nativePath -Recurse -Force
+        } elseif (Test-Path "$extractedDir/bin") {
+          Copy-Item -Path "$extractedDir/bin/*" -Destination $nativePath -Recurse -Force
+        } else {
+          # Fallback: recursively find and copy all DLLs
+          Write-Host "Warning: Standard paths not found, using fallback DLL search"
+          Get-ChildItem -Path $extractedDir -Recurse -Filter *.dll |
+            Where-Object { $_.DirectoryName -match 'Release' -or $_.DirectoryName -notmatch 'Debug' } |
+            Copy-Item -Destination $nativePath -Force
+          
+          # Also copy TBB if not already included
+          Get-ChildItem -Path $extractedDir -Recurse -Filter *tbb*.dll |
+            Copy-Item -Destination $nativePath -Force
+        }
         
         Remove-Item -Path $output, "temp_extract" -Recurse -Force
         Write-Host "✓ OpenVINO runtime setup completed"

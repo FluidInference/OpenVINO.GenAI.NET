@@ -134,9 +134,30 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path $targetPath
 
-          # Copy Release DLLs
-          Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
-          Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
+          # Try different potential library paths
+          if (Test-Path "$runtimePath/lib/intel64/Release") {
+            Copy-Item "$runtimePath/lib/intel64/Release/*.dll" -Destination $targetPath -Force
+            Write-Host "Copied DLLs from runtime/lib/intel64/Release"
+          } elseif (Test-Path "$runtimePath/lib/intel64") {
+            Copy-Item "$runtimePath/lib/intel64/*.dll" -Destination $targetPath -Force
+            Write-Host "Copied DLLs from runtime/lib/intel64"
+          } elseif (Test-Path "$runtimePath/bin/intel64/Release") {
+            Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
+            Write-Host "Copied DLLs from runtime/bin/intel64/Release"
+          } elseif (Test-Path "$runtimePath/bin") {
+            Copy-Item "$runtimePath/bin/*.dll" -Destination $targetPath -Force
+            Write-Host "Copied DLLs from runtime/bin"
+          } else {
+            Write-Host "ERROR: Could not find DLL directory"
+            Write-Host "Available directories:"
+            Get-ChildItem -Path $runtimePath -Directory -Recurse | Select-Object -First 20 | Format-Table FullName
+            exit 1
+          }
+
+          # Also check for TBB DLLs in 3rdparty if they exist
+          if (Test-Path "$runtimePath/3rdparty/tbb/bin") {
+            Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
+          }
 
           Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
 
