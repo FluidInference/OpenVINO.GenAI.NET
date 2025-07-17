@@ -1,6 +1,8 @@
 name: Integration Test
 
 on:
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       test_devices:
@@ -13,9 +15,6 @@ on:
         required: false
         default: 'FluidInference/qwen3-0.6b-int4-ov-npu'
         type: string
-  schedule:
-    # Run weekly on Sundays at 2 AM UTC
-    - cron: '0 2 * * 0'
 
 jobs:
   integration-test:
