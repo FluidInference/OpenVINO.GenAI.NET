@@ -203,16 +203,19 @@ If OpenVINO download URLs change:
 3. **Test Changes**: Run workflows manually to verify downloads work
 4. **Update Documentation**: Update this README with new URL patterns
 
-**Current URL Pattern**:
+**Current URL Pattern** (Fixed):
 ```bash
 # Linux (try in order):
-https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_ubuntu24_2025.2.0.0_x86_64.tar.gz
-https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_runtime_ubuntu24_2025.2.0.0_x86_64.tar.gz
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_2025.2.0.0_x86_64.tar.gz
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_2025.2.0.0_x86_64.tar.gz
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_2025.2.0.0_x86_64.tar.gz
 
 # Windows (try in order):
-https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/windows/openvino_genai_windows_2025.2.0.0_x86_64.zip
-https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_2025.2.0.0_x86_64.zip
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip
 ```
+
+**Important**: Note the path uses `2025.2` not `2025.2.0.0` - this was the key issue causing download failures.
 
 ## Customization
 

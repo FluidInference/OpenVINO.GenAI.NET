@@ -83,8 +83,8 @@ jobs:
         
         # Try multiple potential URLs for robustness
         $urls = @(
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/windows/openvino_genai_windows_2025.2.0.0_x86_64.zip",
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_2025.2.0.0_x86_64.zip",
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip"
         )
         
         $downloaded = $false
@@ -157,10 +157,10 @@ jobs:
         
         # Try multiple potential URLs for robustness
         urls=(
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_ubuntu24_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_runtime_ubuntu24_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_ubuntu22_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_runtime_ubuntu22_2025.2.0.0_x86_64.tgz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_2025.2.0.0_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_2025.2.0.0_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_2025.2.0.0_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_runtime_ubuntu24_2025.2.0.0_x86_64.tar.gz"
         )
         
         downloaded=false
