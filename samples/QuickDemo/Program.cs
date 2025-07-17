@@ -217,11 +217,11 @@ class Program
                 var memoryUsedMB = memoryMonitoring ? (finalMemory - initialMemory) / 1024.0 / 1024.0 : 0;
 
                 Console.WriteLine($"Performance: {tokensPerSecond:F1} tokens/sec, First token: {firstTokenTime.TotalMilliseconds:F0}ms");
-                
+
                 if (memoryMonitoring)
                 {
                     Console.WriteLine($"Memory: {memoryUsedMB:F1}MB used, {finalMemory / 1024.0 / 1024.0:F1}MB total");
-                    
+
                     overallMetrics?.Iterations.Add(new IterationMetrics
                     {
                         Iteration = i + 1,
@@ -235,7 +235,7 @@ class Program
                         Response = response
                     });
                 }
-                
+
                 Console.WriteLine();
             }
 
@@ -414,18 +414,18 @@ class Program
         {
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
             var filename = $"performance-metrics-{metrics.Device.ToLower()}-{timestamp}.json";
-            
+
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
-            
+
             var json = JsonSerializer.Serialize(metrics, options);
             await File.WriteAllTextAsync(filename, json);
-            
+
             Console.WriteLine($"Performance metrics saved to: {filename}");
-            
+
             // Also write a summary for CI/workflow consumption
             var summaryFilename = $"performance-summary-{metrics.Device.ToLower()}-{timestamp}.txt";
             var summary = $"""
@@ -440,7 +440,7 @@ class Program
                 
                 Iterations: {metrics.Iterations.Count}
                 """;
-            
+
             await File.WriteAllTextAsync(summaryFilename, summary);
         }
         catch (Exception ex)
