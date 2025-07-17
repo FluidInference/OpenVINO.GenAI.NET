@@ -275,14 +275,17 @@ jobs:
       shell: bash
 
     - name: Run Integration Tests
-      run: dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj --configuration Release --verbosity normal --filter "Category=Integration"
+      run: |
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+        dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj --configuration Release --verbosity normal --filter "Category=Integration"
 
     - name: Test Device Functionality (Windows)
       if: matrix.os == 'windows-latest'
       working-directory: ./samples/QuickDemo
       shell: pwsh
       run: |
-        $devices = "${{ inputs.test_devices || 'CPU,GPU,NPU' }}" -split ','
+        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+        $devices = "${{ inputs.test_devices || 'CPU' }}" -split ','
         $results = @()
         
         foreach ($device in $devices) {

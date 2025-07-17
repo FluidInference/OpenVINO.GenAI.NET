@@ -233,68 +233,119 @@ jobs:
           }
           
           for ($i = 1; $i -le $iterations; $i++) {
-            Write-Host "Iteration $i/$iterations..."
+            Write-Host "Iteration $i/$iterations for device $device..."
             
             try {
               $startTime = Get-Date
+              Write-Host "  Starting benchmark run..."
+              
+              # Run the application and capture all output
               $output = dotnet run --configuration Release -- --device $device 2>&1
               $endTime = Get-Date
               $exitCode = $LASTEXITCODE
+              $totalTime = ($endTime - $startTime).TotalMilliseconds
               
-              # Debug: Show full output and exit code
-              Write-Host "  Debug - Exit code: $exitCode"
-              Write-Host "  Debug - Full output:"
-              Write-Host "  $output"
-              Write-Host "  ---"
+              Write-Host "  Benchmark completed in $($totalTime.ToString('F0'))ms with exit code: $exitCode"
+              
+              # Always show the full output for debugging
+              Write-Host "  === Full Application Output ==="
+              Write-Host $output
+              Write-Host "  === End Application Output ==="
               
               if ($exitCode -eq 0) {
-                # Parse performance metrics
+                # Parse performance metrics with more robust regex patterns
+                # Handle potential variations in output format
                 $tpsMatch = [regex]::Match($output, 'Performance:\s+(\d+(?:\.\d+)?)\s+tokens/sec')
                 $latencyMatch = [regex]::Match($output, 'First token:\s+(\d+)ms')
                 
-                # Debug: Show what we're trying to parse
-                Write-Host "  Debug - Output to parse:"
-                Write-Host "  $output"
-                Write-Host "  TPS Match: $($tpsMatch.Success), Value: $($tpsMatch.Groups[1].Value)"
-                Write-Host "  Latency Match: $($latencyMatch.Success), Value: $($latencyMatch.Groups[1].Value)"
+                # Also try alternative patterns if the first ones fail
+                if (-not $tpsMatch.Success) {
+                  $tpsMatch = [regex]::Match($output, '(\d+(?:\.\d+)?)\s+tokens/sec')
+                }
+                if (-not $latencyMatch.Success) {
+                  $latencyMatch = [regex]::Match($output, 'First token:\s+(\d+)ms')
+                }
+                
+                Write-Host "  === Performance Parsing Results ==="
+                Write-Host "  TPS Match Success: $($tpsMatch.Success)"
+                if ($tpsMatch.Success) {
+                  Write-Host "  TPS Value: $($tpsMatch.Groups[1].Value)"
+                } else {
+                  Write-Host "  TPS Pattern not found in output"
+                }
+                
+                Write-Host "  Latency Match Success: $($latencyMatch.Success)"
+                if ($latencyMatch.Success) {
+                  Write-Host "  Latency Value: $($latencyMatch.Groups[1].Value)"
+                } else {
+                  Write-Host "  Latency Pattern not found in output"
+                }
+                
+                $tokensPerSecond = if ($tpsMatch.Success) { [double]$tpsMatch.Groups[1].Value } else { 0 }
+                $firstTokenLatency = if ($latencyMatch.Success) { [int]$latencyMatch.Groups[1].Value } else { 0 }
                 
                 $iterationResult = @{
                   Iteration = $i
                   Success = $true
-                  TokensPerSecond = if ($tpsMatch.Success) { [double]$tpsMatch.Groups[1].Value } else { 0 }
-                  FirstTokenLatencyMs = if ($latencyMatch.Success) { [int]$latencyMatch.Groups[1].Value } else { 0 }
-                  TotalTimeMs = ($endTime - $startTime).TotalMilliseconds
+                  TokensPerSecond = $tokensPerSecond
+                  FirstTokenLatencyMs = $firstTokenLatency
+                  TotalTimeMs = $totalTime
                   MemoryUsageMB = 0
+                  ParsedSuccessfully = $tpsMatch.Success -and $latencyMatch.Success
                 }
                 
                 $deviceResults.Iterations += $iterationResult
                 $deviceResults.Success = $true
                 
-                Write-Host "  ✓ TPS: $($iterationResult.TokensPerSecond), Latency: $($iterationResult.FirstTokenLatencyMs)ms"
+                Write-Host "  ✓ RESULTS: TPS=$($tokensPerSecond), Latency=$($firstTokenLatency)ms, Total=$($totalTime.ToString('F0'))ms"
+                
+                # Show warnings if parsing failed
+                if (-not $iterationResult.ParsedSuccessfully) {
+                  Write-Host "  ⚠️  WARNING: Performance metrics could not be parsed from output"
+                }
               } else {
-                Write-Host "  ✗ Failed with exit code: $exitCode"
-                Write-Host "  Output: $output"
-                $deviceResults.ErrorMessage = "Exit code: $exitCode, Output: $output"
+                Write-Host "  ✗ Application failed with exit code: $exitCode"
+                Write-Host "  ✗ This will end benchmarking for this device"
+                $deviceResults.ErrorMessage = "Application exit code: $exitCode"
                 break
               }
             } catch {
-              Write-Host "  ✗ Exception: $($_.Exception.Message)"
+              Write-Host "  ✗ Exception during benchmark: $($_.Exception.Message)"
               $deviceResults.ErrorMessage = $_.Exception.Message
               break
+            }
+            
+            # Add a small delay between iterations
+            if ($i -lt $iterations) {
+              Write-Host "  Waiting 2 seconds before next iteration..."
+              Start-Sleep -Seconds 2
             }
           }
           
           # Calculate averages for successful runs
           if ($deviceResults.Success -and $deviceResults.Iterations.Count -gt 0) {
             $successfulIterations = $deviceResults.Iterations | Where-Object { $_.Success }
+            $parsedIterations = $successfulIterations | Where-Object { $_.ParsedSuccessfully }
             
             $deviceResults.AverageTokensPerSecond = ($successfulIterations | Measure-Object -Property TokensPerSecond -Average).Average
             $deviceResults.AverageFirstTokenLatencyMs = ($successfulIterations | Measure-Object -Property FirstTokenLatencyMs -Average).Average
             $deviceResults.AverageTotalTimeMs = ($successfulIterations | Measure-Object -Property TotalTimeMs -Average).Average
             $deviceResults.MaxMemoryUsageMB = ($successfulIterations | Measure-Object -Property MemoryUsageMB -Maximum).Maximum
             
+            Write-Host "  === Final Results Summary ==="
+            Write-Host "  Total Iterations: $($deviceResults.Iterations.Count)"
+            Write-Host "  Successful Iterations: $($successfulIterations.Count)"
+            Write-Host "  Parsed Successfully: $($parsedIterations.Count)"
             Write-Host "  Average TPS: $($deviceResults.AverageTokensPerSecond.ToString('F2'))"
             Write-Host "  Average Latency: $($deviceResults.AverageFirstTokenLatencyMs.ToString('F0'))ms"
+            Write-Host "  Average Total Time: $($deviceResults.AverageTotalTimeMs.ToString('F0'))ms"
+            
+            if ($parsedIterations.Count -lt $successfulIterations.Count) {
+              Write-Host "  ⚠️  WARNING: Some iterations failed to parse performance metrics!"
+              Write-Host "  ⚠️  This may indicate output format issues or application errors."
+            }
+          } else {
+            Write-Host "  ✗ No successful iterations for this device"
           }
           
           $benchmarkResults += $deviceResults
@@ -330,6 +381,19 @@ jobs:
           "Failed Devices:" | Out-File -FilePath $summaryFile -Append
           foreach ($failed in $failedDevices) {
             "• $($failed.Device): $($failed.ErrorMessage)" | Out-File -FilePath $summaryFile -Append
+          }
+        }
+        
+        # Add warnings for devices with parsing issues
+        $devicesWithParsingIssues = $benchmarkResults | Where-Object { 
+          $_.Success -and ($_.Iterations | Where-Object { -not $_.ParsedSuccessfully }).Count -gt 0 
+        }
+        if ($devicesWithParsingIssues) {
+          "" | Out-File -FilePath $summaryFile -Append
+          "Devices with Performance Parsing Issues:" | Out-File -FilePath $summaryFile -Append
+          foreach ($device in $devicesWithParsingIssues) {
+            $failedParsingCount = ($device.Iterations | Where-Object { -not $_.ParsedSuccessfully }).Count
+            "• $($device.Device): $failedParsingCount/$($device.Iterations.Count) iterations failed to parse metrics" | Out-File -FilePath $summaryFile -Append
           }
         }
         
