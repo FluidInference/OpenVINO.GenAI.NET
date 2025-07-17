@@ -208,7 +208,7 @@ internal static class NativeLibraryLoader
     /// <summary>
     /// Gets diagnostic information about loaded libraries
     /// </summary>
-    public static string GetDiagnosticInfo()
+    internal static string GetDiagnosticInfo()
     {
         var info = new List<string>
         {

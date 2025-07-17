@@ -87,7 +87,7 @@ class Program
                 Console.WriteLine("=== OpenVINO GenAI Diagnostic Information ===");
                 try
                 {
-                    var diagnosticInfo = OpenVINO.NET.GenAI.Native.NativeLibraryLoader.GetDiagnosticInfo();
+                    var diagnosticInfo = OpenVINO.NET.GenAI.DiagnosticInfo.GetNativeLibraryDiagnostics();
                     Console.WriteLine(diagnosticInfo);
                 }
                 catch (Exception diagnosticEx)
