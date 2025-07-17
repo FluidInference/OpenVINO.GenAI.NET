@@ -146,7 +146,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
       run: |
         echo "Downloading OpenVINO GenAI Runtime for Linux..."
-        $outputPath = "build/native"
+        outputPath="build/native"
         mkdir -p $outputPath
         urls=(
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
