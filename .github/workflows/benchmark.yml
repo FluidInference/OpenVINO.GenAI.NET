@@ -125,16 +125,32 @@ jobs:
         
         # Create target directory and copy files
         New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
-        
-        # Try different potential library paths
-        if (Test-Path "$extractedDir/runtime/bin") {
-          Copy-Item -Path "$extractedDir/runtime/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
-        } elseif (Test-Path "$extractedDir/bin") {
-          Copy-Item -Path "$extractedDir/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
-        } else {
-          Write-Host "❌ Could not find binary directory in extracted folder"
-          Get-ChildItem -Path $extractedDir | Format-Table
-          exit 1
+
+        # Copy main OpenVINO DLLs - try common structures
+        $ovPaths = @(
+          "$extractedDir/runtime/bin/intel64/Release",
+          "$extractedDir/bin/intel64/Release"
+        )
+
+        foreach ($path in $ovPaths) {
+          if (Test-Path $path) {
+            Copy-Item -Path "$path/*.dll" -Destination "build/native/runtimes/win-x64/native/" -Force
+            Write-Host "✓ Copied OpenVINO DLLs from $path"
+          }
+        }
+
+        # Copy TBB DLLs - try common locations
+        $tbbPaths = @(
+          "$extractedDir/runtime/3rdparty/tbb/bin",
+          "$extractedDir/3rdparty/tbb/bin"
+        )
+
+        foreach ($path in $tbbPaths) {
+          if (Test-Path $path) {
+            Copy-Item -Path "$path/*.dll" -Destination "build/native/runtimes/win-x64/native/" -Force
+            Write-Host "✓ Copied TBB DLLs from $path"
+            break  # Assuming only one tbb location
+          }
         }
         
         Remove-Item -Path $output, "temp_extract" -Recurse -Force

@@ -5,11 +5,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
     inputs:
-      test_devices:
-        description: 'Devices to test (comma-separated: CPU,GPU,NPU)'
-        required: false
-        default: 'CPU,GPU,NPU'
-        type: string
       model_name:
         description: 'Model to use for testing'
         required: false
@@ -157,8 +152,14 @@ jobs:
       run: |
         echo "Downloading OpenVINO GenAI Runtime for Linux..."
         
-        # Try multiple potential URLs for robustness
+        ubuntu_rs=$(lsb_release -rs)
+        ubuntu_code=${ubuntu_rs//./}
+        echo "Detected runner Ubuntu version: $ubuntu_rs (code: $ubuntu_code)"
+        
+        # Try multiple potential URLs for robustness, prioritizing the detected Ubuntu version
         urls=(
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu${ubuntu_code}_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_runtime_ubuntu${ubuntu_code}_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
           "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
@@ -285,48 +286,45 @@ jobs:
       shell: pwsh
       run: |
         echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
-        $devices = "${{ inputs.test_devices || 'CPU' }}" -split ','
+        $device = "CPU"
         $results = @()
         
-        foreach ($device in $devices) {
-          $device = $device.Trim()
-          Write-Host "Testing device: $device"
+        Write-Host "Testing device: $device"
+        
+        try {
+          $output = dotnet run --configuration Release -- --device $device 2>&1
+          $exitCode = $LASTEXITCODE
           
-          try {
-            $output = dotnet run --configuration Release -- --device $device 2>&1
-            $exitCode = $LASTEXITCODE
+          if ($exitCode -eq 0) {
+            Write-Host "✓ $device: SUCCESS" -ForegroundColor Green
+            $results += "$device=SUCCESS"
             
-            if ($exitCode -eq 0) {
-              Write-Host "✓ $device: SUCCESS" -ForegroundColor Green
-              $results += "$device=SUCCESS"
-              
-              # Extract performance metrics from output
-              $tpsMatch = [regex]::Match($output, 'Performance:\s+(\d+\.\d+)\s+tokens/sec')
-              $latencyMatch = [regex]::Match($output, 'First token:\s+(\d+)ms')
-              
-              if ($tpsMatch.Success) {
-                $tps = $tpsMatch.Groups[1].Value
-                Write-Host "  Tokens/sec: $tps"
-                $results += "$device_TPS=$tps"
-              }
-              
-              if ($latencyMatch.Success) {
-                $latency = $latencyMatch.Groups[1].Value
-                Write-Host "  First token latency: ${latency}ms"
-                $results += "$device_LATENCY=$latency"
-              }
-            } else {
-              Write-Host "✗ $device: FAILED" -ForegroundColor Red
-              $results += "$device=FAILED"
-              Write-Host "Error output: $output"
+            # Extract performance metrics from output
+            $tpsMatch = [regex]::Match($output, 'Performance:\s+(\d+\.\d+)\s+tokens/sec')
+            $latencyMatch = [regex]::Match($output, 'First token:\s+(\d+)ms')
+            
+            if ($tpsMatch.Success) {
+              $tps = $tpsMatch.Groups[1].Value
+              Write-Host "  Tokens/sec: $tps"
+              $results += "$device_TPS=$tps"
             }
-          } catch {
-            Write-Host "✗ $device: ERROR - $($_.Exception.Message)" -ForegroundColor Red
-            $results += "$device=ERROR"
+            
+            if ($latencyMatch.Success) {
+              $latency = $latencyMatch.Groups[1].Value
+              Write-Host "  First token latency: ${latency}ms"
+              $results += "$device_LATENCY=$latency"
+            }
+          } else {
+            Write-Host "✗ $device: FAILED" -ForegroundColor Red
+            $results += "$device=FAILED"
+            Write-Host "Error output: $output"
           }
-          
-          Write-Host ""
+        } catch {
+          Write-Host "✗ $device: ERROR - $($_.Exception.Message)" -ForegroundColor Red
+          $results += "$device=ERROR"
         }
+        
+        Write-Host ""
         
         # Save results to file for artifact upload
         $results | Out-File -FilePath "device-test-results-${{ matrix.runtime }}.txt"
@@ -342,37 +340,34 @@ jobs:
         # Ensure LD_LIBRARY_PATH is set for device testing
         export LD_LIBRARY_PATH="$(pwd)/../../build/native/runtimes/linux-x64/native:$LD_LIBRARY_PATH"
         
-        IFS=',' read -ra devices <<< "${{ inputs.test_devices || 'CPU,GPU,NPU' }}"
+        device="CPU"
         results=()
         
-        for device in "${devices[@]}"; do
-          device=$(echo "$device" | xargs)  # trim whitespace
-          echo "Testing device: $device"
+        echo "Testing device: $device"
+        
+        if output=$(dotnet run --configuration Release -- --device "$device" 2>&1); then
+          echo "✓ $device: SUCCESS"
+          results+=("$device=SUCCESS")
           
-          if output=$(dotnet run --configuration Release -- --device "$device" 2>&1); then
-            echo "✓ $device: SUCCESS"
-            results+=("$device=SUCCESS")
-            
-            # Extract performance metrics from output
-            if [[ $output =~ Performance:[[:space:]]+([0-9]+\.[0-9]+)[[:space:]]+tokens/sec ]]; then
-              tps="${BASH_REMATCH[1]}"
-              echo "  Tokens/sec: $tps"
-              results+=("${device}_TPS=$tps")
-            fi
-            
-            if [[ $output =~ First\ token:[[:space:]]+([0-9]+)ms ]]; then
-              latency="${BASH_REMATCH[1]}"
-              echo "  First token latency: ${latency}ms"
-              results+=("${device}_LATENCY=$latency")
-            fi
-          else
-            echo "✗ $device: FAILED"
-            results+=("$device=FAILED")
-            echo "Error output: $output"
+          # Extract performance metrics from output
+          if [[ $output =~ Performance:[[:space:]]+([0-9]+\.[0-9]+)[[:space:]]+tokens/sec ]]; then
+            tps="${BASH_REMATCH[1]}"
+            echo "  Tokens/sec: $tps"
+            results+=("${device}_TPS=$tps")
           fi
           
-          echo ""
-        done
+          if [[ $output =~ First\ token:[[:space:]]+([0-9]+)ms ]]; then
+            latency="${BASH_REMATCH[1]}"
+            echo "  First token latency: ${latency}ms"
+            results+=("${device}_LATENCY=$latency")
+          fi
+        else
+          echo "✗ $device: FAILED"
+          results+=("$device=FAILED")
+          echo "Error output: $output"
+        fi
+        
+        echo ""
         
         # Save results to file for artifact upload
         printf '%s\n' "${results[@]}" > "device-test-results-${{ matrix.runtime }}.txt"

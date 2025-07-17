@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 namespace OpenVINO.NET.GenAI.Native;
 
@@ -47,8 +48,18 @@ internal static class NativeLibraryLoader
 
     private static void LoadLinuxLibraries()
     {
-        // Try to load from several possible locations
-        var searchPaths = GetLinuxSearchPaths();
+        // Check for environment variable override
+        var nativePath = Environment.GetEnvironmentVariable("OPENVINO_GENAI_NATIVE_PATH");
+        string[] searchPaths;
+        if (!string.IsNullOrEmpty(nativePath))
+        {
+            Debug.WriteLine($"Using OPENVINO_GENAI_NATIVE_PATH: {nativePath}");
+            searchPaths = new[] { nativePath };
+        }
+        else
+        {
+            searchPaths = GetLinuxSearchPaths();
+        }
 
         // Core libraries that need to be loaded in order
         var libraries = new[]
@@ -77,18 +88,33 @@ internal static class NativeLibraryLoader
 
     private static bool TryLoadLibrary(string libName, string[] searchPaths)
     {
-        // First try to load without path (uses system search paths and LD_LIBRARY_PATH)
-        if (NativeLibrary.TryLoad(libName, out _))
-            return true;
+        Debug.WriteLine($"Attempting to load {libName} from system paths or LD_LIBRARY_PATH...");
 
-        // Try each search path
+        if (NativeLibrary.TryLoad(libName, out _))
+        {
+            Debug.WriteLine($"Successfully loaded {libName} from system paths.");
+            return true;
+        }
+
+        Debug.WriteLine("Not found in system paths. Trying explicit paths...");
+
+        var triedPaths = new List<string>();
+
         foreach (var path in searchPaths)
         {
             var fullPath = Path.Combine(path, libName);
+            triedPaths.Add(fullPath);
+
+            Debug.WriteLine($"Trying to load: {fullPath}");
+
             if (File.Exists(fullPath) && NativeLibrary.TryLoad(fullPath, out _))
+            {
+                Debug.WriteLine($"Successfully loaded {libName} from {fullPath}");
                 return true;
+            }
         }
 
+        Debug.WriteLine($"Failed to load {libName}. Tried paths: {string.Join(", ", triedPaths)}");
         return false;
     }
 
