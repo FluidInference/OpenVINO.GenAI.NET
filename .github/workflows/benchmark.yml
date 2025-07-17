@@ -146,23 +146,29 @@ jobs:
         key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
 
     - name: Download OpenVINO Runtime (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      id: cache-openvino-linux
+      uses: actions/cache@v4
+      with:
+        path: build/native/openvino_genai_linux_${{ env.OPENVINO_VERSION }}_x86_64
+        key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
+
+    - name: Download OpenVINO Runtime (Linux)
       if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
       run: |
         echo "Downloading OpenVINO GenAI Runtime for Linux..."
-        
-        # Try multiple potential URLs for robustness
+        $outputPath = "build/native"
+        mkdir -p $outputPath
         urls=(
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_2025.2.0.0_x86_64.tar.gz"
-          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_runtime_ubuntu24_2025.2.0.0_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
+          "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_runtime_ubuntu24_${{ env.OPENVINO_VERSION }}_x86_64.tar.gz"
         )
-        
         downloaded=false
         for url in "${urls[@]}"; do
           echo "Trying: $url"
           if wget -q --user-agent="OpenVINO.NET/1.0" -O openvino_genai_runtime.tar.gz "$url"; then
-            # Verify the downloaded file is valid
             if file openvino_genai_runtime.tar.gz | grep -q "gzip compressed"; then
               echo "✓ Successfully downloaded from: $url"
               downloaded=true
@@ -175,48 +181,22 @@ jobs:
             echo "✗ Failed to download from: $url"
           fi
         done
-        
         if [ "$downloaded" = false ]; then
           echo "❌ Failed to download OpenVINO runtime from any URL"
           exit 1
         fi
-        
-        echo "Extracting runtime..."
-        tar -xzf openvino_genai_runtime.tar.gz
-        
-        # Find the extracted directory (handle different naming conventions)
-        extracted_dir=""
-        for dir in openvino_genai_*; do
-          if [ -d "$dir" ]; then
-            extracted_dir="$dir"
-            break
-          fi
-        done
-        
-        if [ -z "$extracted_dir" ]; then
-          echo "❌ Could not find extracted OpenVINO directory"
-          ls -la
-          exit 1
-        fi
-        
-        echo "Found extracted directory: $extracted_dir"
-        
-        # Create target directory and copy files preserving symlinks
-        mkdir -p build/native/runtimes/linux-x64/native
-        
-        # Try different potential library paths
-        if [ -d "$extracted_dir/runtime/lib/intel64" ]; then
-          cp -a "$extracted_dir/runtime/lib/intel64/"* build/native/runtimes/linux-x64/native/
-        elif [ -d "$extracted_dir/lib" ]; then
-          cp -a "$extracted_dir/lib/"* build/native/runtimes/linux-x64/native/
-        else
-          echo "❌ Could not find library directory in $extracted_dir"
-          ls -la "$extracted_dir"
-          exit 1
-        fi
-        
-        rm -rf openvino_genai_runtime.tar.gz "$extracted_dir"
+        tar -xzf openvino_genai_runtime.tar.gz -C $outputPath
+        rm -f openvino_genai_runtime.tar.gz
         echo "✓ OpenVINO runtime setup completed"
+
+    - name: Setup OpenVINO Libraries (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        $runtimePath = "build/native/openvino_genai_linux_${{ env.OPENVINO_VERSION }}_x86_64/runtime"
+        $targetPath = "build/native/runtimes/linux-x64/native"
+        mkdir -p $targetPath
+        cp -a "$runtimePath/lib/intel64/"* $targetPath/
+        echo "Copied libraries to $targetPath"
 
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
