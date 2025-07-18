@@ -255,7 +255,7 @@ internal static class NativeLibraryLoader
     internal static string GetDiagnosticInfo()
     {
         var envPath = Environment.GetEnvironmentVariable("OPENVINO_RUNTIME_PATH");
-        
+
         var info = new List<string>
         {
             $"Platform: {RuntimeInformation.OSDescription}",
