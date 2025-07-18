@@ -78,11 +78,19 @@ dotnet run --project samples/QuickDemo
 ## Common Issues and Solutions
 
 ### Native Library Loading (Updated 2025.2)
-- **Approach**: Simplified to use standard .NET library resolution
+- **Approach**: Simplified to use standard .NET library resolution with recursive search
 - **Windows**: Automatic loading via SetDllDirectory() API
 - **Linux**: Requires LD_LIBRARY_PATH=. when running from output directory
 - **Libraries**: Uses official OpenVINO GenAI C API (`openvino_genai_c.dll/.so`)
 - **Dependencies**: All dependencies deployed via MSBuild targets
+- **Custom Installations**: Set `OPENVINO_RUNTIME_PATH` environment variable to point to your OpenVINO runtime directory
+
+### Environment Variables
+- **OPENVINO_RUNTIME_PATH**: Optional environment variable to specify custom OpenVINO runtime directory
+  - Use this for non-standard OpenVINO installations or different architectures
+  - Points to the directory containing `openvino_genai_c.dll` (Windows) or `libopenvino_genai_c.so` (Linux)
+  - Example: `export OPENVINO_RUNTIME_PATH="/opt/intel/openvino/runtime/lib/intel64"`
+  - If not set, the system will auto-discover libraries in the application directory and subdirectories
 
 ### .NET 8 Features
 - **Modern C# Features**: Takes advantage of latest language features and performance improvements

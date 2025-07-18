@@ -62,8 +62,16 @@ internal static class NativeLibraryLoader
         if (string.IsNullOrEmpty(assemblyDir))
             throw new InvalidOperationException("Unable to determine assembly directory");
 
+        // First priority: Check OPENVINO_RUNTIME_PATH environment variable
+        var envPath = Environment.GetEnvironmentVariable("OPENVINO_RUNTIME_PATH");
+        if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
+        {
+            AddSearchPathsRecursively(envPath);
+        }
+
         // Add potential search paths in priority order
         AddSearchPath(assemblyDir); // Assembly directory (main output)
+        AddSearchPathsRecursively(assemblyDir); // Search subdirectories for nested structures
         AddSearchPath(Path.Combine(assemblyDir, "runtimes", "win-x64", "native")); // Standard runtime path
         AddSearchPath(Path.Combine(assemblyDir, "native")); // Alternative native path
 
@@ -82,8 +90,16 @@ internal static class NativeLibraryLoader
         if (string.IsNullOrEmpty(assemblyDir))
             throw new InvalidOperationException("Unable to determine assembly directory");
 
+        // First priority: Check OPENVINO_RUNTIME_PATH environment variable
+        var envPath = Environment.GetEnvironmentVariable("OPENVINO_RUNTIME_PATH");
+        if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
+        {
+            AddSearchPathsRecursively(envPath);
+        }
+
         // Add potential search paths
         AddSearchPath(assemblyDir);
+        AddSearchPathsRecursively(assemblyDir); // Search subdirectories for nested structures
         AddSearchPath(Path.Combine(assemblyDir, "runtimes", "linux-x64", "native"));
         AddSearchPath(Path.Combine(assemblyDir, "native"));
 
@@ -96,6 +112,34 @@ internal static class NativeLibraryLoader
         if (Directory.Exists(path))
         {
             _searchPaths.Add(path);
+        }
+    }
+
+    private static void AddSearchPathsRecursively(string basePath)
+    {
+        if (!Directory.Exists(basePath))
+            return;
+
+        AddSearchPath(basePath);
+
+        try
+        {
+            // Add subdirectories that might contain DLLs
+            var subdirs = Directory.GetDirectories(basePath, "*", SearchOption.AllDirectories);
+            foreach (var subdir in subdirs)
+            {
+                // Only add directories that actually contain DLL/SO files
+                var nativeExtension = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "*.dll" : "*.so";
+                if (Directory.GetFiles(subdir, nativeExtension).Length > 0)
+                {
+                    AddSearchPath(subdir);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log but don't fail - recursive search is best-effort
+            Console.WriteLine($"Warning: Could not search subdirectories of {basePath}: {ex.Message}");
         }
     }
 
@@ -210,11 +254,14 @@ internal static class NativeLibraryLoader
     /// </summary>
     internal static string GetDiagnosticInfo()
     {
+        var envPath = Environment.GetEnvironmentVariable("OPENVINO_RUNTIME_PATH");
+        
         var info = new List<string>
         {
             $"Platform: {RuntimeInformation.OSDescription}",
             $"Architecture: {RuntimeInformation.OSArchitecture}",
             $"Initialized: {_isInitialized}",
+            $"OPENVINO_RUNTIME_PATH: {envPath ?? "(not set)"}",
             $"Search paths: {string.Join(", ", _searchPaths)}",
             $"Loaded libraries: {string.Join(", ", _loadedLibraries)}"
         };
