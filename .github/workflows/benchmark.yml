@@ -126,8 +126,8 @@ jobs:
         Get-ChildItem -Path "temp_extract" -Recurse | Format-Table FullName, Length, LastWriteTime
         Write-Host "=================================================="
         
-        # Expected directory structure: openvino_genai_windows_VERSION_x86_64/runtime/lib/intel64/Release
-        $expectedPath = "temp_extract/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64/runtime/lib/intel64/Release"
+        # Expected directory structure: openvino_genai_windows_VERSION_x86_64/runtime/bin/intel64/Release
+        $expectedPath = "temp_extract/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64/runtime/bin/intel64/Release"
         
         Write-Host "Looking for DLLs in expected path: $expectedPath"
         

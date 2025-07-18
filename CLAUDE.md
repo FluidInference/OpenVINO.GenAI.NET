@@ -89,7 +89,7 @@ dotnet run --project samples/QuickDemo
 - **OPENVINO_RUNTIME_PATH**: Optional environment variable to specify custom OpenVINO runtime directory
   - Use this for non-standard OpenVINO installations or different architectures
   - Points to the directory containing `openvino_genai_c.dll` (Windows) or `libopenvino_genai_c.so` (Linux)
-  - Example: `export OPENVINO_RUNTIME_PATH="/opt/intel/openvino/runtime/lib/intel64"`
+  - Example: `export OPENVINO_RUNTIME_PATH="/opt/intel/openvino/runtime/bin/intel64"`
   - If not set, the system will auto-discover libraries in the application directory and subdirectories
 
 ### .NET 8 Features
