@@ -2,7 +2,7 @@
   
   <PropertyGroup>
     <!-- Get the solution directory by going up from this file's directory -->
-    <SolutionDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../../..'))</SolutionDir>
+    <SolutionDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../..'))</SolutionDir>
     
     <!-- First check if OPENVINO_RUNTIME_PATH environment variable is set -->
     <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND '$(OPENVINO_RUNTIME_PATH)' != ''">$(OPENVINO_RUNTIME_PATH)</OpenVINOGenAIRuntimePath>
@@ -22,8 +22,48 @@
     <NativeLibExtension Condition="$([MSBuild]::IsOSPlatform('Linux'))">.so</NativeLibExtension>
   </PropertyGroup>
 
+  <!-- Automatically download OpenVINO runtime if missing -->
+  <Target Name="DownloadOpenVINOGenAIRuntime" BeforeTargets="CopyOpenVINOGenAINativeLibraries" Condition="'$(TargetFramework)' != '' AND '$(RuntimeIdentifier)' != 'browser-wasm' AND '$(OpenVINOGenAIRuntimePath)' == '' AND '$(SuppressOpenVINOWarnings)' != 'true'">
+    
+    <!-- Configure download scripts for each platform -->
+    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+      <DownloadScript>$(SolutionDir)\scripts\download-openvino-runtime.ps1</DownloadScript>
+      <DownloadCommand>powershell.exe -ExecutionPolicy Bypass -File "$(DownloadScript)"</DownloadCommand>
+    </PropertyGroup>
+    
+    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+      <DownloadScript>$(SolutionDir)/scripts/download-openvino-runtime.sh</DownloadScript>
+      <DownloadCommand>bash "$(DownloadScript)"</DownloadCommand>
+    </PropertyGroup>
+    
+    <!-- Notify about automatic download attempt -->
+    <Message Text="OpenVINO GenAI: No runtime found. Attempting automatic download..." 
+             Importance="high" 
+             Condition="'$(DownloadCommand)' != ''" />
+    
+    <Message Text="Debug: SolutionDir=$(SolutionDir), DownloadScript=$(DownloadScript)" 
+             Importance="high" 
+             Condition="'$(DownloadCommand)' != ''" />
+    
+    <!-- Execute download script -->
+    <Exec Command="$(DownloadCommand)" 
+          WorkingDirectory="$(SolutionDir)" 
+          Condition="'$(DownloadCommand)' != ''" 
+          ContinueOnError="false" />
+    
+    <!-- Re-evaluate paths after download -->
+    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+      <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND Exists('$(SolutionDir)\build\native\runtimes\win-x64\native')">$(SolutionDir)\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
+    </PropertyGroup>
+    
+    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+      <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND Exists('$(SolutionDir)/build/native/runtimes/linux-x64/native')">$(SolutionDir)/build/native/runtimes/linux-x64/native</OpenVINOGenAIRuntimePath>
+    </PropertyGroup>
+    
+  </Target>
+
   <!-- Copy native libraries to output directory -->
-  <Target Name="CopyOpenVINOGenAINativeLibraries" BeforeTargets="Build" Condition="'$(TargetFramework)' != '' AND '$(RuntimeIdentifier)' != 'browser-wasm'">
+  <Target Name="CopyOpenVINOGenAINativeLibraries" BeforeTargets="Build" Condition="'$(TargetFramework)' != '' AND '$(RuntimeIdentifier)' != 'browser-wasm'" DependsOnTargets="DownloadOpenVINOGenAIRuntime">
     
     <!-- Include all native libraries from the runtime directory based on platform -->
     <!-- Search recursively to handle nested directory structures like intel64/Release -->
