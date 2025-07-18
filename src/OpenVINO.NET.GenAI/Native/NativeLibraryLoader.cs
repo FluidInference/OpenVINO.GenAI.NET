@@ -30,10 +30,12 @@ internal static class NativeLibraryLoader
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
+                    Console.WriteLine("Setting up Windows native libraries");
                     SetupWindowsNativeLibraries();
                 }
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
+                    Console.WriteLine("Setting up Linux native libraries");
                     SetupLinuxNativeLibraries();
                 }
                 else
@@ -64,8 +66,10 @@ internal static class NativeLibraryLoader
 
         // First priority: Check OPENVINO_RUNTIME_PATH environment variable
         var envPath = Environment.GetEnvironmentVariable("OPENVINO_RUNTIME_PATH");
+        Console.WriteLine($"OPENVINO_RUNTIME_PATH: {envPath}");
         if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
         {
+            Console.WriteLine($"Adding search paths from OPENVINO_RUNTIME_PATH: {envPath}");
             AddSearchPathsRecursively(envPath);
         }
 
