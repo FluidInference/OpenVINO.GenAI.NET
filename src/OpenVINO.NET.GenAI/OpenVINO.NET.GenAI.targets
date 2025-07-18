@@ -22,57 +22,19 @@
     <NativeLibExtension Condition="$([MSBuild]::IsOSPlatform('Linux'))">.so</NativeLibExtension>
   </PropertyGroup>
 
-  <!-- Automatically download OpenVINO runtime if missing -->
-  <Target Name="DownloadOpenVINOGenAIRuntime" BeforeTargets="CopyOpenVINOGenAINativeLibraries" Condition="'$(TargetFramework)' != '' AND '$(RuntimeIdentifier)' != 'browser-wasm' AND '$(OpenVINOGenAIRuntimePath)' == '' AND '$(SuppressOpenVINOWarnings)' != 'true'">
-    
-    <!-- Configure download scripts for each platform -->
-    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
-      <DownloadScript>$(SolutionDir)\scripts\download-openvino-runtime.ps1</DownloadScript>
-      <DownloadCommand>powershell.exe -ExecutionPolicy Bypass -File "$(DownloadScript)"</DownloadCommand>
-    </PropertyGroup>
-    
-    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
-      <DownloadScript>$(SolutionDir)/scripts/download-openvino-runtime.sh</DownloadScript>
-      <DownloadCommand>bash "$(DownloadScript)"</DownloadCommand>
-    </PropertyGroup>
-    
-    <!-- Notify about automatic download attempt -->
-    <Message Text="OpenVINO GenAI: No runtime found. Attempting automatic download..." 
-             Importance="high" 
-             Condition="'$(DownloadCommand)' != ''" />
-    
-    <Message Text="Debug: SolutionDir=$(SolutionDir), DownloadScript=$(DownloadScript)" 
-             Importance="high" 
-             Condition="'$(DownloadCommand)' != ''" />
-    
-    <!-- Execute download script -->
-    <Exec Command="$(DownloadCommand)" 
-          WorkingDirectory="$(SolutionDir)" 
-          Condition="'$(DownloadCommand)' != ''" 
-          ContinueOnError="false" />
-    
-    <!-- Re-evaluate paths after download -->
-    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
-      <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND Exists('$(SolutionDir)\build\native\runtimes\win-x64\native')">$(SolutionDir)\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
-    </PropertyGroup>
-    
-    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
-      <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND Exists('$(SolutionDir)/build/native/runtimes/linux-x64/native')">$(SolutionDir)/build/native/runtimes/linux-x64/native</OpenVINOGenAIRuntimePath>
-    </PropertyGroup>
-    
-  </Target>
-
   <!-- Copy native libraries to output directory -->
-  <Target Name="CopyOpenVINOGenAINativeLibraries" BeforeTargets="Build" Condition="'$(TargetFramework)' != '' AND '$(RuntimeIdentifier)' != 'browser-wasm'" DependsOnTargets="DownloadOpenVINOGenAIRuntime">
+  <Target Name="CopyOpenVINOGenAINativeLibraries" 
+          BeforeTargets="Build" 
+          Condition="'$(TargetFramework)' != '' AND '$(RuntimeIdentifier)' != 'browser-wasm'">
     
     <!-- Include all native libraries from the runtime directory based on platform -->
     <!-- Search recursively to handle nested directory structures like intel64/Release -->
-    <ItemGroup>
+    <ItemGroup Condition="Exists('$(OpenVINOGenAIRuntimePath)')">
       <OpenVINOGenAINativeLibraries Include="$(OpenVINOGenAIRuntimePath)/**/*$(NativeLibExtension)" />
     </ItemGroup>
 
     <!-- If no libraries found with recursive search, try flat directory -->
-    <ItemGroup Condition="'@(OpenVINOGenAINativeLibraries)' == ''">
+    <ItemGroup Condition="'@(OpenVINOGenAINativeLibraries)' == '' AND Exists('$(OpenVINOGenAIRuntimePath)')">
       <OpenVINOGenAINativeLibraries Include="$(OpenVINOGenAIRuntimePath)/*$(NativeLibExtension)" />
     </ItemGroup>
 
@@ -81,29 +43,32 @@
       SourceFiles="@(OpenVINOGenAINativeLibraries)" 
       DestinationFolder="$(OutputPath)" 
       SkipUnchangedFiles="true"
-      Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+      Condition="'@(OpenVINOGenAINativeLibraries)' != ''" />
 
     <!-- Also copy to intermediate output directory for debugging -->
     <Copy 
       SourceFiles="@(OpenVINOGenAINativeLibraries)" 
       DestinationFolder="$(IntermediateOutputPath)" 
       SkipUnchangedFiles="true"
-      Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+      Condition="'@(OpenVINOGenAINativeLibraries)' != ''" />
 
     <Message Text="OpenVINO GenAI: Copied native libraries from $(OpenVINOGenAIRuntimePath) to $(OutputPath)" 
              Importance="normal" 
-             Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+             Condition="'@(OpenVINOGenAINativeLibraries)' != ''" />
 
     <Message Text="OpenVINO GenAI: Using runtime path from OPENVINO_RUNTIME_PATH environment variable: $(OPENVINO_RUNTIME_PATH)" 
              Importance="high" 
              Condition="'$(OPENVINO_RUNTIME_PATH)' != ''" />
 
-    <Warning Text="OpenVINO GenAI: Native libraries not found. Set OPENVINO_RUNTIME_PATH environment variable or ensure native binaries are in: $(SolutionDir)/build/native/runtimes/[platform]/native" 
-             Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND '$(SuppressOpenVINOWarnings)' != 'true'" />
+    <!-- Provide helpful error message with setup instructions -->
+    <Warning Text="OpenVINO GenAI: Native libraries not found. Please follow setup instructions:&#xA;1. Download OpenVINO GenAI runtime from https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/&#xA;2. Extract to $(SolutionDir)/build/native/runtimes/[win-x64|linux-x64]/native/&#xA;3. Or set OPENVINO_RUNTIME_PATH environment variable to the runtime directory" 
+             Condition="'@(OpenVINOGenAINativeLibraries)' == '' AND '$(SuppressOpenVINOWarnings)' != 'true'" />
   </Target>
 
   <!-- For publish scenarios -->
-  <Target Name="PublishOpenVINOGenAINativeLibraries" BeforeTargets="PublishBuild" Condition="'$(PublishDir)' != ''">
+  <Target Name="PublishOpenVINOGenAINativeLibraries" 
+          BeforeTargets="PublishBuild" 
+          Condition="'$(PublishDir)' != '' AND Exists('$(OpenVINOGenAIRuntimePath)')">
     
     <ItemGroup>
       <OpenVINOGenAINativeLibrariesPublish Include="$(OpenVINOGenAIRuntimePath)/**/*$(NativeLibExtension)" />
@@ -118,11 +83,11 @@
       SourceFiles="@(OpenVINOGenAINativeLibrariesPublish)" 
       DestinationFolder="$(PublishDir)" 
       SkipUnchangedFiles="true"
-      Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+      Condition="'@(OpenVINOGenAINativeLibrariesPublish)' != ''" />
 
     <Message Text="OpenVINO GenAI: Published native libraries from $(OpenVINOGenAIRuntimePath) to $(PublishDir)" 
              Importance="normal" 
-             Condition="Exists('$(OpenVINOGenAIRuntimePath)')" />
+             Condition="'@(OpenVINOGenAINativeLibrariesPublish)' != ''" />
   </Target>
 
 </Project>

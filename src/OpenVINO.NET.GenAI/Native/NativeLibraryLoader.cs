@@ -13,6 +13,9 @@ internal static class NativeLibraryLoader
     private static readonly List<string> _searchPaths = new();
     private static readonly List<string> _loadedLibraries = new();
 
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern bool SetDllDirectory(string lpPathName);
+
     /// <summary>
     /// Ensures native libraries are properly configured for the current platform
     /// </summary>
@@ -79,10 +82,23 @@ internal static class NativeLibraryLoader
         AddSearchPath(Path.Combine(assemblyDir, "runtimes", "win-x64", "native")); // Standard runtime path
         AddSearchPath(Path.Combine(assemblyDir, "native")); // Alternative native path
 
+        // Set DLL directory for Windows - use first path that contains DLLs
+        var dllDir = _searchPaths.FirstOrDefault(p => 
+            Directory.Exists(p) && Directory.GetFiles(p, "*.dll").Any());
+        
+        if (dllDir != null)
+        {
+            Console.WriteLine($"Setting DLL directory to: {dllDir}");
+            if (!SetDllDirectory(dllDir))
+            {
+                Console.WriteLine($"Warning: Failed to set DLL directory to {dllDir}");
+            }
+        }
+
         // Set up DLL import resolver for precise control
         NativeLibrary.SetDllImportResolver(typeof(GenAINativeMethods).Assembly, WindowsDllImportResolver);
 
-        // Try to preload critical dependencies
+        // Try to preload critical dependencies in correct order
         PreloadWindowsDependencies();
     }
 
@@ -111,6 +127,9 @@ internal static class NativeLibraryLoader
 
         // Set up DLL import resolver
         NativeLibrary.SetDllImportResolver(typeof(GenAINativeMethods).Assembly, LinuxDllImportResolver);
+
+        // Try to preload critical dependencies in correct order
+        PreloadLinuxDependencies();
     }
 
     private static void AddSearchPath(string path)
@@ -151,7 +170,13 @@ internal static class NativeLibraryLoader
 
     private static IntPtr WindowsDllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
     {
-        // Handle the main OpenVINO GenAI library
+        // Handle core OpenVINO C API
+        if (libraryName == "openvino_c")
+        {
+            return LoadLibraryFromSearchPaths("openvino_c.dll");
+        }
+
+        // Handle the OpenVINO GenAI C API
         if (libraryName == "openvino_genai_c")
         {
             return LoadLibraryFromSearchPaths("openvino_genai_c.dll");
@@ -163,12 +188,22 @@ internal static class NativeLibraryLoader
 
     private static IntPtr LinuxDllImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
     {
-        // Handle the main OpenVINO GenAI library
+        // Handle core OpenVINO C API
+        if (libraryName == "openvino_c")
+        {
+            var candidates = new[] { "libopenvino_c.so", "openvino_c.so" };
+            foreach (var candidate in candidates)
+            {
+                var handle = LoadLibraryFromSearchPaths(candidate);
+                if (handle != IntPtr.Zero)
+                    return handle;
+            }
+        }
+
+        // Handle the OpenVINO GenAI C API
         if (libraryName == "openvino_genai_c")
         {
-            // Try different naming conventions for Linux
             var candidates = new[] { "libopenvino_genai_c.so", "openvino_genai_c.so" };
-
             foreach (var candidate in candidates)
             {
                 var handle = LoadLibraryFromSearchPaths(candidate);
@@ -217,7 +252,8 @@ internal static class NativeLibraryLoader
         {
             if (Directory.Exists(searchPath))
             {
-                var files = Directory.GetFiles(searchPath, "*.dll", SearchOption.TopDirectoryOnly);
+                var extension = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "*.dll" : "*.so";
+                var files = Directory.GetFiles(searchPath, extension, SearchOption.TopDirectoryOnly);
                 availableFiles.AddRange(files.Select(f => Path.GetFileName(f)));
             }
         }
@@ -231,15 +267,17 @@ internal static class NativeLibraryLoader
 
     private static void PreloadWindowsDependencies()
     {
-        // Critical dependencies that need to be loaded first
+        // Critical dependencies that need to be loaded in correct order
         var criticalDependencies = new[]
         {
-            "openvino_c.dll",
-            "openvino_cd.dll",
-            "openvino.dll", 
-            "openvinod.dll",
-            "tbb.dll",
-            "tbb12.dll"
+            "openvino.dll",                    // Core OpenVINO runtime FIRST
+            "openvino_c.dll",                  // Core C API (depends on openvino.dll)
+            "openvino_intel_cpu_plugin.dll",   // CPU device plugin (needed for inference)
+            "openvino_intel_gpu_plugin.dll",   // GPU device plugin
+            "openvino_intel_npu_plugin.dll",   // NPU device plugin
+            "openvino_genai_c.dll",            // GenAI C API (depends on core APIs)
+            "tbb.dll",                         // Intel Threading Building Blocks
+            "tbb12.dll"                        // Alternative TBB version
         };
 
         foreach (var dependency in criticalDependencies)
@@ -247,10 +285,41 @@ internal static class NativeLibraryLoader
             try
             {
                 LoadLibraryFromSearchPaths(dependency);
+                Console.WriteLine($"Successfully preloaded: {dependency}");
             }
             catch (Exception ex)
             {
-                // Log dependency loading attempts - these might be optional
+                // Log dependency loading attempts - some might be optional
+                Console.WriteLine($"Could not preload dependency {dependency}: {ex.Message}");
+            }
+        }
+    }
+
+    private static void PreloadLinuxDependencies()
+    {
+        // Critical dependencies for Linux in correct order
+        var criticalDependencies = new[]
+        {
+            "libopenvino.so",                    // Core OpenVINO runtime
+            "libopenvino_c.so",                  // Core C API
+            "libopenvino_intel_cpu_plugin.so",   // CPU device plugin
+            "libopenvino_intel_gpu_plugin.so",
+            "libopenvino_intel_npu_plugin.so",
+            "libopenvino_genai_c.so",            // GenAI C API
+            "libtbb.so",                         // Intel Threading Building Blocks
+            "libtbb.so.12"                       // Versioned TBB
+        };
+
+        foreach (var dependency in criticalDependencies)
+        {
+            try
+            {
+                LoadLibraryFromSearchPaths(dependency);
+                Console.WriteLine($"Successfully preloaded: {dependency}");
+            }
+            catch (Exception ex)
+            {
+                // Log dependency loading attempts - some might be optional
                 Console.WriteLine($"Could not preload dependency {dependency}: {ex.Message}");
             }
         }

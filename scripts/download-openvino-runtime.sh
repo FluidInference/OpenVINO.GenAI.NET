@@ -28,8 +28,8 @@ if [ -d "$EXTRACTED_PATH" ]; then
 fi
 
 # Download URL
-BASE_URL="https://storage.openvinotoolkit.org/repositories/openvino_genai/packages"
-FILE_NAME="openvino_genai_ubuntu24_${VERSION}_x86_64.tgz"
+BASE_URL="https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/"
+FILE_NAME="openvino_genai_ubuntu24_${VERSION}_x86_64.tar.gz"
 URL="$BASE_URL/$VERSION/$FILE_NAME"
 
 echo "Downloading from: $URL"
