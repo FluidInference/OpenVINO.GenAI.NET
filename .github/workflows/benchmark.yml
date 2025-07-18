@@ -283,13 +283,18 @@ jobs:
     - name: Setup Environment for OpenVINO
       shell: pwsh
       run: |
-        # Add OpenVINO runtime to PATH so .NET can find the DLLs
-        # The DLLs are in the intel64/Release subdirectory
-        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native/intel64/Release"
+        # Set the OpenVINO runtime path - this is where the DLLs are actually located
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        
+        # Set OPENVINO_RUNTIME_PATH environment variable (prioritized by NativeLibraryLoader)
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+        # Also add to PATH for compatibility
         $currentPath = $env:PATH
         $newPath = "$runtimePath;$currentPath"
         "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Append
         
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
         Write-Host "Added OpenVINO runtime to PATH: $runtimePath"
         Write-Host "Verifying PATH update..."
         Write-Host "PATH now contains:"
@@ -334,6 +339,7 @@ jobs:
         Write-Host "=== Environment Debug Information ==="
         Write-Host "Working Directory: $(Get-Location)"
         Write-Host "Model Path: $env:QUICKDEMO_MODEL_PATH"
+        Write-Host "OPENVINO_RUNTIME_PATH: $env:OPENVINO_RUNTIME_PATH"
         Write-Host "OpenVINO Runtime in PATH: $(($env:PATH -split ';') | Where-Object { $_ -like '*openvino*' -or $_ -like '*native*' })"
         Write-Host "======================================"
         Write-Host ""
