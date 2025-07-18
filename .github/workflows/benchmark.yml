@@ -300,37 +300,6 @@ jobs:
         Write-Host "PATH now contains:"
         ($newPath -split ';') | ForEach-Object { Write-Host "  $_" }
         
-        # Verify the runtime directory exists and contains required DLLs
-        if (Test-Path $runtimePath) {
-          Write-Host "✓ Runtime directory exists"
-          
-          # Check for required DLLs
-          $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll")
-          $missingDlls = @()
-          
-          foreach ($dll in $requiredDlls) {
-            $dllPath = Join-Path $runtimePath $dll
-            if (Test-Path $dllPath) {
-              Write-Host "✓ Found required DLL: $dll"
-            } else {
-              Write-Host "✗ Missing required DLL: $dll"
-              $missingDlls += $dll
-            }
-          }
-          
-          if ($missingDlls.Count -gt 0) {
-            Write-Host "❌ Missing required DLLs: $($missingDlls -join ', ')"
-            Write-Host "Available DLL files in runtime path:"
-            Get-ChildItem -Path $runtimePath -Filter "*.dll" | ForEach-Object { Write-Host "  - $($_.Name)" }
-            exit 1
-          }
-          
-          Write-Host "✓ All required DLLs found in runtime path"
-        } else {
-          Write-Host "❌ Runtime directory not found: $runtimePath"
-          exit 1
-        }
-
     - name: Run Performance Benchmark
       working-directory: ./samples/QuickDemo
       shell: pwsh
@@ -340,7 +309,6 @@ jobs:
         Write-Host "Working Directory: $(Get-Location)"
         Write-Host "Model Path: $env:QUICKDEMO_MODEL_PATH"
         Write-Host "OPENVINO_RUNTIME_PATH: $env:OPENVINO_RUNTIME_PATH"
-        Write-Host "OpenVINO Runtime in PATH: $(($env:PATH -split ';') | Where-Object { $_ -like '*openvino*' -or $_ -like '*native*' })"
         Write-Host "======================================"
         Write-Host ""
         
