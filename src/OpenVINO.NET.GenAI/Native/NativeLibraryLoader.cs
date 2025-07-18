@@ -96,8 +96,10 @@ internal static class NativeLibraryLoader
 
         // First priority: Check OPENVINO_RUNTIME_PATH environment variable
         var envPath = Environment.GetEnvironmentVariable("OPENVINO_RUNTIME_PATH");
+        Console.WriteLine($"OPENVINO_RUNTIME_PATH: {envPath}");
         if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
         {
+            Console.WriteLine($"Adding search paths from OPENVINO_RUNTIME_PATH: {envPath}");
             AddSearchPathsRecursively(envPath);
         }
 
@@ -196,15 +198,14 @@ internal static class NativeLibraryLoader
             {
                 try
                 {
-                    if (NativeLibrary.TryLoad(fullPath, out var handle))
-                    {
-                        _loadedLibraries.Add(fullPath);
-                        return handle;
-                    }
+                    var handle = NativeLibrary.Load(fullPath);
+                    _loadedLibraries.Add(fullPath);
+                    Console.WriteLine($"Successfully loaded: {fullPath}");
+                    return handle;
                 }
                 catch (Exception ex)
                 {
-                    // Log the attempt and continue to next path
+                    // Log the detailed attempt and continue to next path
                     Console.WriteLine($"Failed to load {fullPath}: {ex.Message}");
                 }
             }
@@ -234,7 +235,9 @@ internal static class NativeLibraryLoader
         var criticalDependencies = new[]
         {
             "openvino_c.dll",
-            "openvino.dll",
+            "openvino_cd.dll",
+            "openvino.dll", 
+            "openvinod.dll",
             "tbb.dll",
             "tbb12.dll"
         };
@@ -245,10 +248,10 @@ internal static class NativeLibraryLoader
             {
                 LoadLibraryFromSearchPaths(dependency);
             }
-            catch
+            catch (Exception ex)
             {
-                // Some dependencies might be optional or named differently
-                // Continue loading others
+                // Log dependency loading attempts - these might be optional
+                Console.WriteLine($"Could not preload dependency {dependency}: {ex.Message}");
             }
         }
     }
