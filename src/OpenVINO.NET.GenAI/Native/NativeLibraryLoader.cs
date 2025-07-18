@@ -236,8 +236,6 @@ internal static class NativeLibraryLoader
         {
             "openvino_c.dll",
             "openvino_cd.dll",
-            "openvino_genai_c.dll",
-            "openvino_genai_cd.dll",
             "openvino.dll", 
             "openvinod.dll",
             "tbb.dll",
