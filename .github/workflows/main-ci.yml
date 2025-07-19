@@ -131,9 +131,6 @@ jobs:
           # Run demo with CPU device
           dotnet run --project samples/QuickDemo --configuration Release -- --device CPU
 
-          Write-Host "`nRunning benchmark mode..."
-          dotnet run --project samples/QuickDemo --configuration Release -- --benchmark
-
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()

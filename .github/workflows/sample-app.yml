@@ -94,6 +94,13 @@ jobs:
       run: |
         ./scripts/download-openvino-runtime.ps1 -Version "${{ env.OPENVINO_VERSION }}" -OutputPath "build/native"
 
+    - name: Set OPENVINO_RUNTIME_PATH
+      shell: pwsh
+      run: |
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+
     - name: Verify OpenVINO Runtime Installation
       shell: pwsh
       run: |

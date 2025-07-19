@@ -33,12 +33,10 @@ internal static class NativeLibraryLoader
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
-                    Console.WriteLine("Setting up Windows native libraries");
                     SetupWindowsNativeLibraries();
                 }
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
-                    Console.WriteLine("Setting up Linux native libraries");
                     SetupLinuxNativeLibraries();
                 }
                 else
@@ -69,10 +67,8 @@ internal static class NativeLibraryLoader
 
         // First priority: Check OPENVINO_RUNTIME_PATH environment variable
         var envPath = Environment.GetEnvironmentVariable("OPENVINO_RUNTIME_PATH");
-        Console.WriteLine($"OPENVINO_RUNTIME_PATH: {envPath}");
         if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
         {
-            Console.WriteLine($"Adding search paths from OPENVINO_RUNTIME_PATH: {envPath}");
             AddSearchPathsRecursively(envPath);
         }
 
@@ -115,7 +111,6 @@ internal static class NativeLibraryLoader
         Console.WriteLine($"OPENVINO_RUNTIME_PATH: {envPath}");
         if (!string.IsNullOrEmpty(envPath) && Directory.Exists(envPath))
         {
-            Console.WriteLine($"Adding search paths from OPENVINO_RUNTIME_PATH: {envPath}");
             AddSearchPathsRecursively(envPath);
         }
 
@@ -227,7 +222,6 @@ internal static class NativeLibraryLoader
         {
             handle = NativeLibrary.Load(path);
             _loadedLibraries.Add(path);
-            Console.WriteLine($"Successfully loaded: {path}");
             return true;
         }
         catch (Exception ex)
@@ -306,8 +300,6 @@ internal static class NativeLibraryLoader
             "openvino_intel_gpu_plugin.dll",   // GPU device plugin
             "openvino_intel_npu_plugin.dll",   // NPU device plugin
             "openvino_genai_c.dll",            // GenAI C API (depends on core APIs)
-            "tbb.dll",                         // Intel Threading Building Blocks
-            "tbb12.dll"                        // Alternative TBB version
         };
 
         foreach (var dependency in criticalDependencies)
@@ -315,12 +307,11 @@ internal static class NativeLibraryLoader
             try
             {
                 LoadLibraryFromSearchPaths(dependency);
-                Console.WriteLine($"Successfully preloaded: {dependency}");
             }
             catch (Exception ex)
             {
                 // Log dependency loading attempts - some might be optional
-                Console.WriteLine($"Could not preload dependency {dependency}: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Could not preload dependency {dependency}: {ex.Message}");
             }
         }
     }
@@ -336,7 +327,6 @@ internal static class NativeLibraryLoader
             "libopenvino_c.so",                 // ④ C API
             "libopenvino_intel_cpu_plugin.so",
             "libopenvino_intel_gpu_plugin.so",
-            "libOpenCL.so.1",
             "libopenvino_intel_npu_plugin.so",
             "libopenvino_genai.so",
             "libopenvino_genai_c.so"
@@ -347,7 +337,6 @@ internal static class NativeLibraryLoader
             try
             {
                 LoadLibraryFromSearchPaths(dependency);
-                Console.WriteLine($"Successfully preloaded: {dependency}");
             }
             catch (Exception ex)
             {
