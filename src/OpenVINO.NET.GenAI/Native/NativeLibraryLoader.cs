@@ -83,9 +83,9 @@ internal static class NativeLibraryLoader
         AddSearchPath(Path.Combine(assemblyDir, "native")); // Alternative native path
 
         // Set DLL directory for Windows - use first path that contains DLLs
-        var dllDir = _searchPaths.FirstOrDefault(p => 
+        var dllDir = _searchPaths.FirstOrDefault(p =>
             Directory.Exists(p) && Directory.GetFiles(p, "*.dll").Any());
-        
+
         if (dllDir != null)
         {
             Console.WriteLine($"Setting DLL directory to: {dllDir}");
@@ -215,7 +215,7 @@ internal static class NativeLibraryLoader
         // Let the default resolver handle other libraries
         return IntPtr.Zero;
     }
-    
+
     private static bool TryLoad(string path, out IntPtr handle)
     {
         handle = IntPtr.Zero;
@@ -237,7 +237,7 @@ internal static class NativeLibraryLoader
         }
     }
 
-   private static IntPtr LoadLibraryFromSearchPaths(string libraryName)
+    private static IntPtr LoadLibraryFromSearchPaths(string libraryName)
     {
         // We copy the current list because we mutate _searchPaths elsewhere
         var searchPaths = _searchPaths.ToList();
@@ -338,8 +338,8 @@ internal static class NativeLibraryLoader
             "libopenvino_intel_gpu_plugin.so",
             "libOpenCL.so.1",
             "libopenvino_intel_npu_plugin.so",
-            "libopenvino_genai.so",            
-            "libopenvino_genai_c.so"           
+            "libopenvino_genai.so",
+            "libopenvino_genai_c.so"
         };
 
         foreach (var dependency in criticalDependencies)

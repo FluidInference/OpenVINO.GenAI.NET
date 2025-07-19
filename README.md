@@ -14,7 +14,7 @@ A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic 
 
 ## Requirements
 
-- .NET 9.0 or later
+- .NET 8.0 or later
 - Windows x64
 - OpenVINO GenAI 2025.2.0.0 runtime
 
@@ -23,6 +23,14 @@ A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic 
 ### Option 1: Quick Demo (Recommended)
 
 The easiest way to get started is with the QuickDemo application that automatically downloads a model:
+
+
+By default the script downloads for ubuntu 24, if have another version, change it in the script
+```bash
+ scripts/download-openvino-runtime.sh 
+
+ OPENVINO_RUNTIME_PATH=/home/brandon/OpenVINO.GenAI.NET/build/native/runtimes/linux-x64/native dotnet run --project samples/QuickDemo/ --configuration Release -- --device CPU
+```
 
 ```bash
 # Run with default CPU device
