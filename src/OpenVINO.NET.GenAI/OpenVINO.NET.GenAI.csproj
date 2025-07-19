@@ -11,8 +11,8 @@
     <Company>FluidInference</Company>
     <Product>Fluid.OpenVINO.GenAI</Product>
     <Description>Community-maintained C# wrapper for OpenVINO GenAI, providing idiomatic .NET APIs for LLM inference. Includes async/await support, streaming generation, and automatic native library management.</Description>
-    <PackageProjectUrl>https://github.com/openvinotoolkit/openvino-csharp</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/openvinotoolkit/openvino-csharp</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/FluidInference/OpenVINO.GenAI.NET</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/FluidInference/OpenVINO.GenAI.NET</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>openvino;ai;inference;llm;genai;machine-learning;deep-learning;neural-networks;text-generation</PackageTags>
