@@ -44,12 +44,27 @@ jobs:
       shell: pwsh
       run: |
         ./scripts/download-openvino-runtime.ps1 -Version "2025.2.0.0" -OutputPath "build/native"
+        
+    - name: Set OPENVINO_RUNTIME_PATH for Windows
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
 
     - name: Download OpenVINO Runtime (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
         chmod +x scripts/download-openvino-runtime.sh
         ./scripts/download-openvino-runtime.sh "2025.2.0.0" "build/native" "24"
+        
+    - name: Set OPENVINO_RUNTIME_PATH for Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
+        echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
+        echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
 
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore

@@ -52,19 +52,12 @@ jobs:
         run: |
           ./scripts/download-openvino-runtime.ps1 -Version "$env:OPENVINO_VERSION" -OutputPath "build/native"
 
-      - name: Setup OpenVINO DLLs
+      - name: Set OPENVINO_RUNTIME_PATH
         shell: pwsh
         run: |
-          $runtimePath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64/runtime"
-          $targetPath = "build/native/runtimes/win-x64/native"
-
-          New-Item -ItemType Directory -Force -Path $targetPath
-
-          # Copy Release DLLs
-          Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
-          Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
-
-          Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
+          $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+          "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
 
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln

@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using OpenVINO.NET.GenAI;
 
@@ -357,7 +358,7 @@ class Program
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             Console.WriteLine("Linux is only supported for CPU");
-            devices = new [] { "CPU" };
+            devices = new[] { "CPU" };
         }
 
         var results = new List<BenchmarkResult>();

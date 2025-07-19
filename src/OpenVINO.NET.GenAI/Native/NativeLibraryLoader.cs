@@ -284,7 +284,7 @@ internal static class NativeLibraryLoader
         foreach (var dir in searchPaths.Where(Directory.Exists))
         {
             var pattern = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "*.dll" : "*.so*";
-            available.AddRange(Directory.GetFiles(dir, pattern).Select(Path.GetFileName));
+            available.AddRange(Directory.GetFiles(dir, pattern).Select(Path.GetFileName).Where(name => name != null).Cast<string>());
         }
 
         var msg =
