@@ -12,7 +12,7 @@ on:
       - ".github/workflows/pr-validation.yml"
 
 env:
-  OPENVINO_VERSION: "2025.2.0.0rc4"
+  OPENVINO_VERSION: "2025.2.0.0"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
@@ -50,50 +50,14 @@ jobs:
         if: steps.cache-openvino.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          Write-Host "Downloading OpenVINO GenAI Runtime $env:OPENVINO_VERSION..."
-          $outputPath = "build/native"
-          New-Item -ItemType Directory -Force -Path $outputPath
-          
-          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/pre-release/${env:OPENVINO_VERSION}/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
-          $zipPath = "$outputPath/openvino_genai.zip"
-          
-          Write-Host "URL: $url"
-          Write-Host "Output path: $zipPath"
-          
-          try {
-            # Use WebClient instead of Invoke-WebRequest for better compatibility
-            $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($url, $zipPath)
-            $webClient.Dispose()
-            
-            Write-Host "Download completed successfully"
-            
-            Write-Host "Extracting archive..."
-            Add-Type -AssemblyName System.IO.Compression.FileSystem
-            [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $outputPath)
-            Remove-Item $zipPath
-            
-            Write-Host "OpenVINO Runtime downloaded and extracted successfully"
-          }
-          catch {
-            Write-Host "Error downloading OpenVINO runtime: $_"
-            Write-Host "Error details: $($_.Exception.Message)"
-            exit 1
-          }
+          ./scripts/download-openvino-runtime.ps1 -Version "$env:OPENVINO_VERSION" -OutputPath "build/native"
 
-      - name: Setup OpenVINO DLLs
+      - name: Set OPENVINO_RUNTIME_PATH
         shell: pwsh
         run: |
-          $runtimePath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64/runtime"
-          $targetPath = "build/native/runtimes/win-x64/native"
-
-          New-Item -ItemType Directory -Force -Path $targetPath
-
-          # Copy Release DLLs
-          Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
-          Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
-
-          Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
+          $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+          "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
 
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln

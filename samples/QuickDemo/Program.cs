@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using OpenVINO.NET.GenAI;
 
@@ -79,6 +80,82 @@ class Program
         {
             Console.WriteLine($"Error: {ex.Message}");
             Console.WriteLine("Make sure you have the required OpenVINO runtime installed.");
+
+            // Provide detailed diagnostics for DLL loading issues
+            if (ex is DllNotFoundException || ex.Message.Contains("openvino_genai_c"))
+            {
+                Console.WriteLine();
+                Console.WriteLine("=== OpenVINO GenAI Diagnostic Information ===");
+                try
+                {
+                    var diagnosticInfo = OpenVINO.NET.GenAI.DiagnosticInfo.GetNativeLibraryDiagnostics();
+                    Console.WriteLine(diagnosticInfo);
+                }
+                catch (Exception diagnosticEx)
+                {
+                    Console.WriteLine($"Failed to get diagnostic info: {diagnosticEx.Message}");
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("=== Current Directory Files ===");
+                try
+                {
+                    var currentDir = Environment.CurrentDirectory;
+                    Console.WriteLine($"Current directory: {currentDir}");
+                    var dllFiles = Directory.GetFiles(currentDir, "*.dll", SearchOption.TopDirectoryOnly);
+                    if (dllFiles.Any())
+                    {
+                        Console.WriteLine("DLL files found:");
+                        foreach (var file in dllFiles.OrderBy(f => f))
+                        {
+                            var fileInfo = new FileInfo(file);
+                            Console.WriteLine($"  {Path.GetFileName(file)} ({fileInfo.Length} bytes)");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("No DLL files found in current directory.");
+                    }
+                }
+                catch (Exception dirEx)
+                {
+                    Console.WriteLine($"Failed to list directory contents: {dirEx.Message}");
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("=== Runtime Directory Files ===");
+                try
+                {
+                    var runtimeDir = Path.Combine(Environment.CurrentDirectory, "runtimes", "win-x64", "native");
+                    if (Directory.Exists(runtimeDir))
+                    {
+                        Console.WriteLine($"Runtime directory: {runtimeDir}");
+                        var runtimeFiles = Directory.GetFiles(runtimeDir, "*.dll", SearchOption.TopDirectoryOnly);
+                        if (runtimeFiles.Any())
+                        {
+                            Console.WriteLine("Runtime DLL files found:");
+                            foreach (var file in runtimeFiles.OrderBy(f => f))
+                            {
+                                var fileInfo = new FileInfo(file);
+                                Console.WriteLine($"  {Path.GetFileName(file)} ({fileInfo.Length} bytes)");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("No DLL files found in runtime directory.");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Runtime directory does not exist: {runtimeDir}");
+                    }
+                }
+                catch (Exception runtimeEx)
+                {
+                    Console.WriteLine($"Failed to list runtime directory contents: {runtimeEx.Message}");
+                }
+            }
+
             Environment.Exit(1);
         }
     }
@@ -163,6 +240,23 @@ class Program
         Console.WriteLine();
     }
 
+    static void PrintSummaryTable(PerformanceMetrics metrics)
+    {
+        Console.WriteLine("Summary Table:");
+        Console.WriteLine("==============");
+        Console.WriteLine($"{"Prompt",-8} | {"Tokens/sec",10} | {"First Token",12} | {"Tokens",6} | {"Time (ms)",10} | {"Memory (MB)",12}");
+        Console.WriteLine(new string('-', 70));
+
+        foreach (var iter in metrics.Iterations)
+        {
+            Console.WriteLine($"{iter.Iteration,7}  | {iter.TokensPerSecond,10:F1} | {iter.FirstTokenLatencyMs,10:F0}ms | {iter.TokenCount,6} | {iter.TotalTimeMs,10:F0} | {iter.MemoryUsedMB,12:F1}");
+        }
+
+        Console.WriteLine(new string('-', 70));
+        Console.WriteLine($"{"Average",-8} | {metrics.AverageTokensPerSecond,10:F1} | {metrics.AverageFirstTokenLatencyMs,10:F0}ms | {"-",6} | {"-",10} | {metrics.Iterations.Average(i => i.MemoryUsedMB),12:F1}");
+        Console.WriteLine();
+    }
+
     static async Task RunSingleDeviceDemoAsync(string modelPath, string device, bool memoryMonitoring = false)
     {
         Console.WriteLine($"Device: {device.ToUpper()}");
@@ -179,16 +273,15 @@ class Program
                 .WithTopP(TopP)
                 .WithSampling(true);
 
-            if (memoryMonitoring)
-            {
-                overallMetrics = new PerformanceMetrics { Device = device.ToUpper() };
-            }
+            // Always initialize metrics to show summary table
+            overallMetrics = new PerformanceMetrics { Device = device.ToUpper() };
 
             for (int i = 0; i < TestPrompts.Length; i++)
             {
                 Console.WriteLine($"Prompt {i + 1}: \"{TestPrompts[i]}\"");
 
-                var initialMemory = memoryMonitoring ? GC.GetTotalMemory(false) : 0;
+                // Always monitor memory
+                var initialMemory = GC.GetTotalMemory(false);
                 var stopwatch = Stopwatch.StartNew();
                 var firstTokenTime = TimeSpan.Zero;
                 var tokenCount = 0;
@@ -213,45 +306,44 @@ class Program
 
                 var totalTime = stopwatch.Elapsed;
                 var tokensPerSecond = tokenCount / totalTime.TotalSeconds;
-                var finalMemory = memoryMonitoring ? GC.GetTotalMemory(false) : 0;
-                var memoryUsedMB = memoryMonitoring ? (finalMemory - initialMemory) / 1024.0 / 1024.0 : 0;
+                var finalMemory = GC.GetTotalMemory(false);
+                var memoryUsedMB = (finalMemory - initialMemory) / 1024.0 / 1024.0;
 
-                Console.WriteLine($"Performance: {tokensPerSecond:F1} tokens/sec, First token: {firstTokenTime.TotalMilliseconds:F0}ms");
-                
-                if (memoryMonitoring)
+                Console.WriteLine($"Performance: {tokensPerSecond:F1} tokens/sec, First token: {firstTokenTime.TotalMilliseconds:F0}ms, Memory: {memoryUsedMB:F1}MB");
+
+                // Always add iteration metrics for summary table
+                overallMetrics?.Iterations.Add(new IterationMetrics
                 {
-                    Console.WriteLine($"Memory: {memoryUsedMB:F1}MB used, {finalMemory / 1024.0 / 1024.0:F1}MB total");
-                    
-                    overallMetrics?.Iterations.Add(new IterationMetrics
-                    {
-                        Iteration = i + 1,
-                        TokensPerSecond = tokensPerSecond,
-                        FirstTokenLatencyMs = firstTokenTime.TotalMilliseconds,
-                        TotalTimeMs = totalTime.TotalMilliseconds,
-                        MemoryUsedMB = memoryUsedMB,
-                        TotalMemoryMB = finalMemory / 1024.0 / 1024.0,
-                        TokenCount = tokenCount,
-                        Prompt = TestPrompts[i],
-                        Response = response
-                    });
-                }
-                
+                    Iteration = i + 1,
+                    TokensPerSecond = tokensPerSecond,
+                    FirstTokenLatencyMs = firstTokenTime.TotalMilliseconds,
+                    TotalTimeMs = totalTime.TotalMilliseconds,
+                    MemoryUsedMB = memoryUsedMB,
+                    TotalMemoryMB = finalMemory / 1024.0 / 1024.0,
+                    TokenCount = tokenCount,
+                    Prompt = TestPrompts[i],
+                    Response = response
+                });
+
                 Console.WriteLine();
             }
 
-            if (memoryMonitoring && overallMetrics != null)
+            // Always show summary table
+            if (overallMetrics != null)
             {
-                await SavePerformanceMetricsAsync(overallMetrics);
+                PrintSummaryTable(overallMetrics);
+
+                // Only save metrics file when memory monitoring is enabled
+                if (memoryMonitoring)
+                {
+                    await SavePerformanceMetricsAsync(overallMetrics);
+                }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to run on {device}: {ex.Message}");
-            if (device.ToUpper() != "CPU")
-            {
-                Console.WriteLine("Trying CPU fallback...");
-                await RunSingleDeviceDemoAsync(modelPath, "CPU", memoryMonitoring);
-            }
+            Environment.Exit(1);
         }
     }
 
@@ -261,7 +353,15 @@ class Program
         Console.WriteLine("====================");
         Console.WriteLine();
 
+
         var devices = new[] { "CPU", "GPU", "NPU" };
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            Console.WriteLine("Linux is only supported for CPU");
+            devices = new[] { "CPU" };
+        }
+
         var results = new List<BenchmarkResult>();
 
         foreach (var device in devices)
@@ -333,6 +433,7 @@ class Program
         Console.WriteLine();
         DisplayBenchmarkResults(results);
     }
+
 
     static void DisplayBenchmarkResults(List<BenchmarkResult> results)
     {
@@ -414,18 +515,18 @@ class Program
         {
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
             var filename = $"performance-metrics-{metrics.Device.ToLower()}-{timestamp}.json";
-            
+
             var options = new JsonSerializerOptions
             {
                 WriteIndented = true,
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
-            
+
             var json = JsonSerializer.Serialize(metrics, options);
             await File.WriteAllTextAsync(filename, json);
-            
+
             Console.WriteLine($"Performance metrics saved to: {filename}");
-            
+
             // Also write a summary for CI/workflow consumption
             var summaryFilename = $"performance-summary-{metrics.Device.ToLower()}-{timestamp}.txt";
             var summary = $"""
@@ -440,7 +541,7 @@ class Program
                 
                 Iterations: {metrics.Iterations.Count}
                 """;
-            
+
             await File.WriteAllTextAsync(summaryFilename, summary);
         }
         catch (Exception ex)

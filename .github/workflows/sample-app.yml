@@ -1,0 +1,276 @@
+name: Run Sample App
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: 'Number of iterations'
+        required: false
+        default: '3'
+        type: number
+      model_name:
+        description: 'Model to use for benchmarking'
+        required: false
+        default: 'FluidInference/qwen3-0.6b-int4-ov-npu'
+        type: string
+
+        
+permissions:
+  pull-requests: write
+  issues: write
+
+env:
+  OPENVINO_VERSION: "2025.2.0.0"
+
+jobs:
+  benchmark:
+    name: Build and Run
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install Visual C++ Redistributables
+      shell: pwsh
+      run: |
+        Write-Host "Installing Visual C++ Redistributables..."
+        
+        # Download and install VC++ redistributables
+        $vcRedistUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        $vcRedistPath = "vc_redist.x64.exe"
+        
+        try {
+          Invoke-WebRequest -Uri $vcRedistUrl -OutFile $vcRedistPath
+          
+          # Install silently
+          Start-Process -FilePath $vcRedistPath -ArgumentList "/install", "/quiet", "/norestart" -Wait
+          
+          Write-Host "✓ Visual C++ Redistributables installed successfully"
+        } catch {
+          Write-Host "Warning: Failed to install Visual C++ Redistributables: $($_.Exception.Message)"
+          Write-Host "This may cause native library loading issues"
+        } finally {
+          if (Test-Path $vcRedistPath) {
+            Remove-Item $vcRedistPath -Force
+          }
+        }
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Cache Model
+      uses: actions/cache@v4
+      with:
+        path: ./Models
+        key: model-${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}-v1
+        restore-keys: |
+          model-${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}-
+
+    - name: Restore dependencies
+      run: dotnet restore OpenVINO.NET.sln
+
+    - name: Cache OpenVINO Runtime
+      id: cache-openvino-windows
+      uses: actions/cache@v4
+      with:
+        path: build/native/runtimes/win-x64/native
+        key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
+
+    - name: Download OpenVINO Runtime
+      if: steps.cache-openvino-windows.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        ./scripts/download-openvino-runtime.ps1 -Version "${{ env.OPENVINO_VERSION }}" -OutputPath "build/native"
+
+    - name: Set OPENVINO_RUNTIME_PATH
+      shell: pwsh
+      run: |
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+
+    - name: Verify OpenVINO Runtime Installation
+      shell: pwsh
+      run: |
+        Write-Host "Verifying OpenVINO Runtime Installation..."
+        Write-Host "========================================"
+        
+        $runtimePath = "build/native/runtimes/win-x64/native"
+        
+        if (Test-Path $runtimePath) {
+          Write-Host "✓ Runtime directory exists: $runtimePath"
+          
+          # List all files in the runtime directory
+          Write-Host ""
+          Write-Host "Files in runtime directory:"
+          Get-ChildItem -Path $runtimePath -Recurse | Format-Table Name, Length, LastWriteTime
+          
+          # Check for specific required DLLs
+          $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll")
+          $missingDlls = @()
+          
+          foreach ($dll in $requiredDlls) {
+            $found = Get-ChildItem -Path $runtimePath -Filter $dll -Recurse -ErrorAction SilentlyContinue
+            if ($found) {
+              Write-Host "✓ Found required DLL: $dll at $($found[0].FullName)"
+            } else {
+              Write-Host "✗ Missing required DLL: $dll"
+              $missingDlls += $dll
+            }
+          }
+          
+          if ($missingDlls.Count -eq 0) {
+            Write-Host ""
+            Write-Host "✓ All required DLLs are present"
+          } else {
+            Write-Host ""
+            Write-Host "❌ Missing DLLs: $($missingDlls -join ', ')"
+            Write-Host "This will cause runtime failures"
+            exit 1
+          }
+        } else {
+          Write-Host "❌ Runtime directory not found: $runtimePath"
+          exit 1
+        }
+
+    - name: Build solution
+      run: dotnet build OpenVINO.NET.sln --configuration Release
+
+    - name: Download Benchmark Model
+      working-directory: ./samples/QuickDemo
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path "Models" -Force
+        Set-Location Models
+        
+        # Use model name from input or default
+        $MODEL_NAME = "${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
+        $MODEL_DIR = $MODEL_NAME.Split('/')[1]
+        
+        if ((-not (Test-Path $MODEL_DIR)) -or (-not (Test-Path "$MODEL_DIR/openvino_model.xml"))) {
+          Write-Host "Downloading model: $MODEL_NAME"
+          
+          New-Item -ItemType Directory -Path $MODEL_DIR -Force
+          Set-Location $MODEL_DIR
+          
+          # Download key files
+          $files = @("openvino_model.xml", "openvino_model.bin", "openvino_tokenizer.xml", "openvino_tokenizer.bin", "openvino_detokenizer.xml", "openvino_detokenizer.bin", "config.json", "generation_config.json")
+          
+          foreach ($file in $files) {
+            Write-Host "Downloading $file..."
+            try {
+              Invoke-WebRequest -Uri "https://huggingface.co/$MODEL_NAME/resolve/main/$file" -OutFile $file -UserAgent "OpenVINO.NET/1.0"
+            } catch {
+              Write-Host "Warning: Failed to download $file (may be optional)"
+            }
+          }
+          
+          Set-Location ..
+          Write-Host "✓ Model download completed"
+        } else {
+          Write-Host "✓ Model already cached"
+        }
+
+    - name: Set Model Path Environment
+      shell: pwsh
+      run: |
+        $MODEL_NAME = "${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
+        $MODEL_DIR = $MODEL_NAME.Split('/')[1]
+        $MODEL_PATH = "$(Get-Location)/samples/QuickDemo/Models/$MODEL_DIR"
+        "QUICKDEMO_MODEL_PATH=$MODEL_PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    - name: Setup Environment for OpenVINO
+      shell: pwsh
+      run: |
+        # Set the OpenVINO runtime path - this is where the DLLs are actually located
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        
+        # Set OPENVINO_RUNTIME_PATH environment variable (prioritized by NativeLibraryLoader)
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+        # Also add to PATH for compatibility
+        $currentPath = $env:PATH
+        $newPath = "$runtimePath;$currentPath"
+        "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+        Write-Host "Added OpenVINO runtime to PATH: $runtimePath"
+        Write-Host "Verifying PATH update..."
+        Write-Host "PATH now contains:"
+        ($newPath -split ';') | ForEach-Object { Write-Host "  $_" }
+        
+    - name: Run Performance Benchmark
+      working-directory: ./samples/QuickDemo
+      shell: pwsh
+      run: |
+        # Debug environment before starting benchmark
+        Write-Host "=== Environment Debug Information ==="
+        Write-Host "Working Directory: $(Get-Location)"
+        Write-Host "Model Path: $env:QUICKDEMO_MODEL_PATH"
+        Write-Host "OPENVINO_RUNTIME_PATH: $env:OPENVINO_RUNTIME_PATH"
+        Write-Host "======================================"
+        Write-Host ""
+        
+        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        
+        $allOutput = @()
+        $allOutput += "# Performance Benchmark Results - Windows x64"
+        $allOutput += ""
+        $allOutput += "**Generated:** $timestamp"
+        $allOutput += "**Platform:** win-x64"
+        $allOutput += ""
+        $allOutput += "``````"
+        
+        $startTime = Get-Date
+        $output = dotnet run --configuration Release -- --device CPU 2>&1
+        $endTime = Get-Date
+        $exitCode = $LASTEXITCODE
+        $elapsed = ($endTime - $startTime).TotalMilliseconds
+        
+        Write-Host $output
+        Write-Host "Exit Code: $exitCode, Time: $($elapsed.ToString('F0'))ms"
+        Write-Host ""
+        
+        $allOutput += "Exit Code: $exitCode, Time: $($elapsed.ToString('F0'))ms):"
+        $allOutput += $output
+        $allOutput += ""
+        
+        $allOutput += "``````"
+        
+        # Save the output to file for PR comment
+        $allOutput | Out-File -FilePath "benchmark-output.md" -Encoding UTF8
+        Write-Host "Benchmark finished. Output saved to benchmark-output.md"
+
+    - name: Upload Benchmark Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results-win-x64
+        path: ./samples/QuickDemo/benchmark-output.md
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          if (fs.existsSync('./samples/QuickDemo/benchmark-output.md')) {
+            const summary = fs.readFileSync('./samples/QuickDemo/benchmark-output.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+          }

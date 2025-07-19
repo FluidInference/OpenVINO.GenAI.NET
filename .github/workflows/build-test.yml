@@ -43,42 +43,40 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: pwsh
       run: |
-        Write-Host "Downloading OpenVINO GenAI Runtime for Windows..."
-        $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip"
-        $output = "openvino_genai_runtime.zip"
+        ./scripts/download-openvino-runtime.ps1 -Version "2025.2.0.0" -OutputPath "build/native"
         
-        Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
-        
-        Write-Host "Extracting runtime..."
-        Expand-Archive -Path $output -DestinationPath "temp_extract" -Force
-        
-        # Create target directory and copy files
-        New-Item -Path "build/native/runtimes/win-x64/native" -ItemType Directory -Force
-        Copy-Item -Path "temp_extract/openvino_genai_runtime/bin/*" -Destination "build/native/runtimes/win-x64/native/" -Recurse -Force
-        
-        Remove-Item -Path $output, "temp_extract" -Recurse -Force
-        Write-Host "✓ OpenVINO runtime setup completed"
+    - name: Set OPENVINO_RUNTIME_PATH for Windows
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
 
     - name: Download OpenVINO Runtime (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        echo "Downloading OpenVINO GenAI Runtime for Linux..."
-        url="https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2.0.0/linux/openvino_genai_runtime_ubuntu22_2025.2.0.0_x86_64.tgz"
+        chmod +x scripts/download-openvino-runtime.sh
+        ./scripts/download-openvino-runtime.sh "2025.2.0.0" "build/native" "24"
         
-        wget -q --user-agent="OpenVINO.NET/1.0" -O openvino_genai_runtime.tgz "$url"
-        
-        echo "Extracting runtime..."
-        tar -xzf openvino_genai_runtime.tgz
-        
-        # Create target directory and copy files preserving symlinks
-        mkdir -p build/native/runtimes/linux-x64/native
-        cp -a openvino_genai_runtime/lib/* build/native/runtimes/linux-x64/native/
-        
-        rm -rf openvino_genai_runtime.tgz openvino_genai_runtime
-        echo "✓ OpenVINO runtime setup completed"
+    - name: Set OPENVINO_RUNTIME_PATH for Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
+        echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
+        echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
 
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore
+
+    - name: Set LD_LIBRARY_PATH for Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        LIBRARY_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
+        echo "LD_LIBRARY_PATH=$LIBRARY_PATH:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        echo "Setting LD_LIBRARY_PATH to: $LIBRARY_PATH"
+        ls -la "$LIBRARY_PATH" | grep -E "(libtbb|libopenvino)" | head -10
+      shell: bash
 
     - name: Run unit tests
       run: dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --results-directory ./coverage
@@ -89,14 +87,6 @@ jobs:
       with:
         name: test-results-${{ matrix.runtime }}
         path: ./coverage
-
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v4
-      if: matrix.os == 'ubuntu-latest'
-      with:
-        directory: ./coverage
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Build artifacts
       run: dotnet publish samples/QuickDemo/QuickDemo.csproj --configuration Release --runtime ${{ matrix.runtime }} --self-contained false --output ./artifacts/${{ matrix.runtime }}

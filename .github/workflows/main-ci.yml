@@ -12,7 +12,7 @@ on:
         default: false
 
 env:
-  OPENVINO_VERSION: "2025.2.0.0rc4"
+  OPENVINO_VERSION: "2025.2.0.0"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
@@ -29,7 +29,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 8.0.x
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -50,32 +50,14 @@ jobs:
         if: steps.cache-openvino.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          Write-Host "Downloading OpenVINO GenAI Runtime $env:OPENVINO_VERSION..."
-          $outputPath = "build/native"
-          New-Item -ItemType Directory -Force -Path $outputPath
+          ./scripts/download-openvino-runtime.ps1 -Version "$env:OPENVINO_VERSION" -OutputPath "build/native"
 
-          $url = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/pre-release/${env:OPENVINO_VERSION}/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64.zip"
-          $zipPath = "$outputPath/openvino_genai.zip"
-
-          Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
-          Expand-Archive -Path $zipPath -DestinationPath $outputPath -Force
-          Remove-Item $zipPath
-
-          Write-Host "OpenVINO Runtime downloaded successfully"
-
-      - name: Setup OpenVINO DLLs
+      - name: Set OPENVINO_RUNTIME_PATH
         shell: pwsh
         run: |
-          $runtimePath = "build/native/openvino_genai_windows_${env:OPENVINO_VERSION}_x86_64/runtime"
-          $targetPath = "build/native/runtimes/win-x64/native"
-
-          New-Item -ItemType Directory -Force -Path $targetPath
-
-          # Copy Release DLLs
-          Copy-Item "$runtimePath/bin/intel64/Release/*.dll" -Destination $targetPath -Force
-          Copy-Item "$runtimePath/3rdparty/tbb/bin/*.dll" -Destination $targetPath -Force
-
-          Write-Host "Copied $(Get-ChildItem $targetPath -Filter *.dll | Measure-Object).Count DLL files"
+          $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+          "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
 
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln
@@ -99,14 +81,14 @@ jobs:
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
         uses: actions/cache@v4
         with:
-          path: Models/qwen3-0.6b-int4-ov
-          key: model-qwen3-0.6b-int4-ov-v1
+          path: Models/qwen3-0.6b-int4-ov-npu
+          key: model-qwen3-0.6b-int4-ov-npu-v1
 
       - name: Download INT4 model for testing
         if: ${{ github.event.inputs.skip_inference_test != 'true' }}
         shell: pwsh
         run: |
-          $modelPath = "Models/qwen3-0.6b-int4-ov"
+          $modelPath = "Models/qwen3-0.6b-int4-ov-npu"
           if (-not (Test-Path "$modelPath/openvino_model.xml")) {
             Write-Host "Downloading INT4 quantized model for inference testing..."
             New-Item -ItemType Directory -Force -Path $modelPath
@@ -125,7 +107,7 @@ jobs:
             )
             
             foreach ($file in $files) {
-              $url = "https://huggingface.co/bweng/qwen3-0.6b-int4-ov-npu/resolve/main/$file"
+              $url = "https://huggingface.co/FluidInference/qwen3-0.6b-int4-ov-npu/resolve/main/$file"
               $outputFile = "$modelPath/$file"
               Write-Host "Downloading $file..."
               Invoke-WebRequest -Uri $url -OutFile $outputFile -UseBasicParsing
@@ -144,13 +126,10 @@ jobs:
           Write-Host "Running QuickDemo with INT4 model on CPU..."
 
           # Set model path environment variable
-          $env:QUICKDEMO_MODEL_PATH = "Models/qwen3-0.6b-int4-ov"
+          $env:QUICKDEMO_MODEL_PATH = "Models/qwen3-0.6b-int4-ov-npu"
 
           # Run demo with CPU device
           dotnet run --project samples/QuickDemo --configuration Release -- --device CPU
-
-          Write-Host "`nRunning benchmark mode..."
-          dotnet run --project samples/QuickDemo --configuration Release -- --benchmark
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -177,40 +156,3 @@ jobs:
           reporter: dotnet-trx
           fail-on-error: true
 
-  publish-nuget:
-    name: Publish NuGet Packages
-    needs: build-test-inference
-    runs-on: windows-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 9.0.x
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: artifacts/
-
-      - name: Pack NuGet packages
-        run: |
-          dotnet pack src/OpenVINO.NET.Core/OpenVINO.NET.Core.csproj --configuration Release --output ./nuget
-          dotnet pack src/OpenVINO.NET.GenAI/OpenVINO.NET.GenAI.csproj --configuration Release --output ./nuget
-          dotnet pack src/OpenVINO.NET.Native/OpenVINO.NET.Native.csproj --configuration Release --output ./nuget
-
-      - name: Upload NuGet packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget-packages
-          path: nuget/*.nupkg
-
-    # Uncomment when ready to publish to NuGet.org
-    # - name: Publish to NuGet
-    #   run: |
-    #     dotnet nuget push ./nuget/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
