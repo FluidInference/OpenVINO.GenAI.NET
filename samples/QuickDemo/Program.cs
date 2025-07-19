@@ -332,7 +332,7 @@ class Program
             if (overallMetrics != null)
             {
                 PrintSummaryTable(overallMetrics);
-                
+
                 // Only save metrics file when memory monitoring is enabled
                 if (memoryMonitoring)
                 {
