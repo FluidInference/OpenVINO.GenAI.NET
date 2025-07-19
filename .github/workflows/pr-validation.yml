@@ -50,44 +50,7 @@ jobs:
         if: steps.cache-openvino.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          Write-Host "Downloading OpenVINO GenAI Runtime $env:OPENVINO_VERSION..."
-          $outputPath = "build/native"
-          New-Item -ItemType Directory -Force -Path $outputPath
-
-          $urls = @(
-            "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_2025.2.0.0_x86_64.zip",
-            "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip"
-          )
-
-          $downloaded = $false
-          $output = "openvino_genai_runtime.zip"
-
-          foreach ($url in $urls) {
-            Write-Host "Trying: $url"
-            try {
-              Invoke-WebRequest -Uri $url -OutFile $output -UserAgent "OpenVINO.NET/1.0"
-              if ((Get-Item $output).Length -gt 1MB) {
-                Write-Host "Successfully downloaded from $url"
-                $downloaded = $true
-                break
-              } else {
-                Write-Host "Downloaded file is too small, trying next URL..."
-                Remove-Item $output
-              }
-            } catch {
-              Write-Host "Failed to download from $url, trying next URL..."
-            }
-          }
-
-          if (-not $downloaded) {
-            Write-Host "Failed to download OpenVINO runtime from any URL."
-            exit 1
-          }
-
-          Expand-Archive -Path $output -DestinationPath $outputPath -Force
-          Remove-Item $output
-
-          Write-Host "OpenVINO Runtime downloaded successfully"
+          ./scripts/download-openvino-runtime.ps1 -Version "$env:OPENVINO_VERSION" -OutputPath "build/native"
 
       - name: Setup OpenVINO DLLs
         shell: pwsh

@@ -28,19 +28,14 @@ The easiest way to get started is with the QuickDemo application that automatica
 By default the script downloads for ubuntu 24, if have another version, change it in the script
 ```bash
  scripts/download-openvino-runtime.sh 
-
  OPENVINO_RUNTIME_PATH=/home/brandon/OpenVINO.GenAI.NET/build/native/runtimes/linux-x64/native dotnet run --project samples/QuickDemo/ --configuration Release -- --device CPU
 ```
 
+For Windwos 
 ```bash
-# Run with default CPU device
-dotnet run --project samples/QuickDemo
-
-# Run on specific device
-dotnet run --project samples/QuickDemo -- --device GPU
-
-# Compare performance across all devices
-dotnet run --project samples/QuickDemo -- --benchmark
+.\scripts\download-openvino-runtime.ps1
+$env:OPENVINO_RUNTIME_PATH = "C:\Users\brand\code\OpenVINO.GenAI.NET\build\native\runtimes\win-x64\native"
+dotnet run --project samples/QuickDemo/ --configuration Release -- --device CPU
 ```
 
 **Sample Output:**

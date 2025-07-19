@@ -239,6 +239,23 @@ class Program
         Console.WriteLine();
     }
 
+    static void PrintSummaryTable(PerformanceMetrics metrics)
+    {
+        Console.WriteLine("Summary Table:");
+        Console.WriteLine("==============");
+        Console.WriteLine($"{"Prompt",-8} | {"Tokens/sec",10} | {"First Token",12} | {"Tokens",6} | {"Time (ms)",10}");
+        Console.WriteLine(new string('-', 55));
+
+        foreach (var iter in metrics.Iterations)
+        {
+            Console.WriteLine($"{iter.Iteration,7}  | {iter.TokensPerSecond,10:F1} | {iter.FirstTokenLatencyMs,10:F0}ms | {iter.TokenCount,6} | {iter.TotalTimeMs,10:F0}");
+        }
+
+        Console.WriteLine(new string('-', 55));
+        Console.WriteLine($"{"Average",-8} | {metrics.AverageTokensPerSecond,10:F1} | {metrics.AverageFirstTokenLatencyMs,10:F0}ms | {"-",6} | {"-",10}");
+        Console.WriteLine();
+    }
+
     static async Task RunSingleDeviceDemoAsync(string modelPath, string device, bool memoryMonitoring = false)
     {
         Console.WriteLine($"Device: {device.ToUpper()}");
@@ -318,6 +335,7 @@ class Program
             if (memoryMonitoring && overallMetrics != null)
             {
                 await SavePerformanceMetricsAsync(overallMetrics);
+                PrintSummaryTable(overallMetrics);
             }
         }
         catch (Exception ex)
@@ -333,7 +351,15 @@ class Program
         Console.WriteLine("====================");
         Console.WriteLine();
 
+
         var devices = new[] { "CPU", "GPU", "NPU" };
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            Console.WriteLine("Linux is only supported for CPU");
+            devices = new [] { "CPU" };
+        }
+
         var results = new List<BenchmarkResult>();
 
         foreach (var device in devices)
@@ -405,6 +431,7 @@ class Program
         Console.WriteLine();
         DisplayBenchmarkResults(results);
     }
+
 
     static void DisplayBenchmarkResults(List<BenchmarkResult> results)
     {
