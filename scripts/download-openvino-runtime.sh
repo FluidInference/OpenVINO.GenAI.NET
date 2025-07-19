@@ -20,6 +20,9 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FULL_OUTPUT_PATH="$(cd "$SCRIPT_DIR/.." && pwd)/$OUTPUT_PATH"
 mkdir -p "$FULL_OUTPUT_PATH"
+TARGET_PATH="$FULL_OUTPUT_PATH/runtimes/linux-x64/native"
+
+export OPENVINO_RUNTIME_PATH="$TARGET_PATH"
 
 # Check if already downloaded
 EXTRACTED_PATH="$FULL_OUTPUT_PATH/openvino_genai_ubuntu${UBUNTU_VERSION}_${VERSION}_x86_64"
@@ -58,7 +61,6 @@ rm -f "$ZIP_PATH"
 
 # Copy libraries to expected location
 RUNTIME_PATH="$EXTRACTED_PATH/runtime"
-TARGET_PATH="$FULL_OUTPUT_PATH/runtimes/linux-x64/native"
 
 echo "Setting up runtime libraries..."
 mkdir -p "$TARGET_PATH"
@@ -75,6 +77,7 @@ fi
 
 LIB_COUNT=$(find "$TARGET_PATH" -name "*.so" | wc -l)
 echo "Copied $LIB_COUNT library files to: $TARGET_PATH"
+
 
 echo ""
 echo "OpenVINO GenAI Runtime setup completed successfully!"
