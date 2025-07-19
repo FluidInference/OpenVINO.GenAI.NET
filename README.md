@@ -14,9 +14,9 @@ A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic 
 
 ## Requirements
 
-- .NET 9.0 or later
+- .NET 8.0 or later
 - Windows x64
-- OpenVINO GenAI 2025.2.0.0-rc4 runtime
+- OpenVINO GenAI 2025.2.0.0 runtime
 
 ## Quick Start
 
@@ -24,15 +24,18 @@ A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic 
 
 The easiest way to get started is with the QuickDemo application that automatically downloads a model:
 
+
+By default the script downloads for ubuntu 24, if have another version, change it in the script
 ```bash
-# Run with default CPU device
-dotnet run --project samples/QuickDemo
+ scripts/download-openvino-runtime.sh 
+ OPENVINO_RUNTIME_PATH=/home/brandon/OpenVINO.GenAI.NET/build/native/runtimes/linux-x64/native dotnet run --project samples/QuickDemo/ --configuration Release -- --device CPU
+```
 
-# Run on specific device
-dotnet run --project samples/QuickDemo -- --device GPU
-
-# Compare performance across all devices
-dotnet run --project samples/QuickDemo -- --benchmark
+For Windwos 
+```bash
+.\scripts\download-openvino-runtime.ps1
+$env:OPENVINO_RUNTIME_PATH = "C:\Users\brand\code\OpenVINO.GenAI.NET\build\native\runtimes\win-x64\native"
+dotnet run --project samples/QuickDemo/ --configuration Release -- --device CPU
 ```
 
 **Sample Output:**
@@ -120,7 +123,7 @@ await foreach (var token in pipeline.GenerateStreamAsync("Tell me a story", conf
 ┌─────────────────────────────────────────────────────────────┐
 │            OpenVINO GenAI C API                            │
 │  • Native OpenVINO GenAI runtime                           │
-│  • Version: 2025.2.0.0-rc4                                 │
+│  • Version: 2025.2.0.0                                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -140,7 +143,7 @@ await foreach (var token in pipeline.GenerateStreamAsync("Tell me a story", conf
 1. **Install .NET 9.0 SDK or later**
    - Download from: https://dotnet.microsoft.com/download
 
-2. **Install OpenVINO GenAI Runtime 2025.2.0.0-rc4**
+2. **Install OpenVINO GenAI Runtime 2025.2.0.0**
    - Download from: https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/
    - Extract to a directory in your PATH, or place DLLs in your application's output directory
 

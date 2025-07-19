@@ -24,17 +24,6 @@
     <PackageReleaseNotes>
       OpenVINO.NET GenAI 2025.2.0.0
       
-      Features:
-      - Complete C# wrapper for OpenVINO GenAI C API
-      - Async/await support for all operations
-      - Streaming text generation with IAsyncEnumerable
-      - Fluent API for generation configuration
-      - Chat session management
-      - Comprehensive error handling
-      - Automatic native library deployment
-      - SafeHandle-based resource management
-      - Cross-platform support (Windows and Linux)
-      
       Requirements:
       - .NET 8.0 or later
       - Windows x64 or Linux x64
@@ -42,11 +31,11 @@
     </PackageReleaseNotes>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebugType>full</DebugType>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebugType>pdbonly</DebugType>
   </PropertyGroup>
 
@@ -61,24 +50,44 @@
     <ProjectReference Include="..\OpenVINO.NET.Native\OpenVINO.NET.Native.csproj" />
   </ItemGroup>
 
-  <!-- Include native libraries in NuGet package -->
-  <!-- Windows native libraries -->
+  <!-- Windows native libraries for NuGet package and local output -->
   <ItemGroup Condition="Exists('..\..\build\native\runtimes\win-x64\native')">
     <Content Include="..\..\build\native\runtimes\win-x64\native\*.dll">
       <PackagePath>runtimes\win-x64\native\%(Filename)%(Extension)</PackagePath>
       <Pack>true</Pack>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Link>runtimes\win-x64\native\%(Filename)%(Extension)</Link>
     </Content>
   </ItemGroup>
   
-  <!-- Linux native libraries -->
-  <ItemGroup Condition="Exists('../../build/native/runtimes/linux-x64/native')">
-    <Content Include="../../build/native/runtimes/linux-x64/native/*.so*">
+  <!-- Linux native libraries for NuGet package and local output -->
+  <ItemGroup Condition="Exists('..\..\build\native\runtimes\linux-x64\native')">
+    <Content Include="..\..\build\native\runtimes\linux-x64\native\*.so*">
       <PackagePath>runtimes/linux-x64/native/%(Filename)%(Extension)</PackagePath>
       <Pack>true</Pack>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <Link>runtimes/linux-x64/native/%(Filename)%(Extension)</Link>
     </Content>
   </ItemGroup>
+
+  <!-- Copy native libraries to output directory for development/testing -->
+  <Target Name="CopyNativeLibraries" BeforeTargets="Build">
+    <!-- Windows -->
+    <ItemGroup Condition="'$(OS)' == 'Windows_NT' AND Exists('..\..\build\native\runtimes\win-x64\native')">
+      <WindowsNativeLibs Include="..\..\build\native\runtimes\win-x64\native\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WindowsNativeLibs)" 
+          DestinationFolder="$(OutputPath)" 
+          Condition="'$(OS)' == 'Windows_NT' AND '@(WindowsNativeLibs)' != ''" />
+    
+    <!-- Linux -->
+    <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND Exists('../../build/native/runtimes/linux-x64/native')">
+      <LinuxNativeLibs Include="../../build/native/runtimes/linux-x64/native/*.so*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LinuxNativeLibs)" 
+          DestinationFolder="$(OutputPath)" 
+          Condition="'$(OS)' != 'Windows_NT' AND '@(LinuxNativeLibs)' != ''" />
+  </Target>
 
   <!-- Include MSBuild targets in NuGet package -->
   <ItemGroup>
@@ -96,7 +105,8 @@
     </None>
   </ItemGroup>
 
-  <!-- Import MSBuild targets for native library deployment -->
-  <Import Project="OpenVINO.NET.GenAI.targets" />
+  <!-- Only import targets if this is NOT the project that defines them -->
+  <!-- Remove this line if OpenVINO.NET.GenAI.targets is defined in this same project -->
+  <!-- <Import Project="OpenVINO.NET.GenAI.targets" /> -->
 
 </Project>

@@ -1,6 +1,6 @@
-using Xunit;
 using OpenVINO.NET.GenAI.Exceptions;
 using OpenVINO.NET.GenAI.Native;
+using Xunit;
 
 namespace OpenVINO.NET.GenAI.Tests;
 

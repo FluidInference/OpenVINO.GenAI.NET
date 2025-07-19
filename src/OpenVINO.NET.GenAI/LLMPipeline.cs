@@ -26,6 +26,9 @@ public sealed class LLMPipeline : IDisposable
         if (string.IsNullOrEmpty(device))
             throw new ArgumentException("Device cannot be null or empty", nameof(device));
 
+        // Ensure native libraries are loaded before any P/Invoke calls
+        NativeLibraryLoader.EnsureLoaded();
+
         var status = GenAINativeMethods.ov_genai_llm_pipeline_create(
             modelPath,
             device,

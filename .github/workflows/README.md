@@ -119,16 +119,103 @@ gh workflow run benchmark.yml -f devices="NPU" -f iterations=10
 ## Troubleshooting
 
 ### Common Issues
-1. **Model Download Failures**: Check network connectivity and HuggingFace availability
-2. **Device Not Available**: Workflows gracefully handle missing devices (GPU/NPU)
-3. **Memory Issues**: Large models may exceed runner memory limits
-4. **Build Failures**: Usually indicate breaking changes in dependencies
+
+#### 1. **OpenVINO Runtime Download Failures**
+**Symptoms**: 
+- `gzip: stdin: not in gzip format`
+- `tar: Child returned status 1`
+- `Failed to download OpenVINO runtime from any URL`
+
+**Solutions**:
+- Workflows now include multiple URL fallbacks (ubuntu24, ubuntu22, different naming conventions)
+- Check OpenVINO storage availability: https://storage.openvinotoolkit.org/repositories/openvino_genai/
+- Verify internet connectivity and corporate firewall settings
+- Manual verification: Try downloading URLs directly
+
+**Workflow Improvements** (Applied):
+- Multiple URL attempts with different Ubuntu versions and file formats
+- File format validation before extraction
+- Detailed error messages showing which URLs were tried
+- Automatic directory structure detection
+
+#### 2. **Model Download Failures**
+**Symptoms**: Model files missing or corrupted from HuggingFace
+
+**Solutions**:
+- Check network connectivity and HuggingFace availability
+- Verify model exists: https://huggingface.co/FluidInference/qwen3-0.6b-int4-ov-npu
+- Models are cached between runs - clear cache if corrupted
+- Use alternative models via workflow parameters
+
+#### 3. **Device Not Available**
+**Symptoms**: GPU/NPU tests fail with device errors
+
+**Solutions**:
+- Workflows gracefully handle missing devices with fallback to CPU
+- Check GitHub runner capabilities (GPU support limited)
+- NPU support only available on Intel-specific hardware
+- Review device compatibility reports in workflow outputs
+
+#### 4. **Memory Issues**
+**Symptoms**: Out of memory errors during model loading or inference
+
+**Solutions**:
+- Large models may exceed runner memory limits (7GB on GitHub runners)
+- Use smaller/quantized models for CI (like INT4 NPU model)
+- Monitor memory usage with `--memory-monitoring` flag
+- Consider self-hosted runners for larger models
+
+#### 5. **Build Failures**
+**Symptoms**: Compilation errors, missing dependencies
+
+**Solutions**:
+- Usually indicate breaking changes in dependencies
+- Check MSBuild targets path resolution
+- Verify .NET 8.0 SDK installation
+- Review native library deployment
 
 ### Debugging Steps
-1. Check workflow logs for detailed error messages
-2. Verify model availability on HuggingFace
-3. Test locally with QuickDemo: `dotnet run --project samples/QuickDemo`
-4. Enable verbose logging with `--verbosity detailed`
+
+#### For Download Issues:
+1. **Check Workflow Logs**: Look for specific URL failures and error messages
+2. **Manual URL Testing**: Try downloading URLs directly with curl/wget
+3. **Verify OpenVINO Storage**: Check if files exist at storage.openvinotoolkit.org
+4. **Test Local Setup**: Run download scripts locally to isolate the issue
+
+#### For Runtime Issues:
+1. **Check Device Logs**: Review device-specific error messages
+2. **Verify Model Files**: Ensure all required OpenVINO files are present
+3. **Test Locally**: Run QuickDemo locally: `dotnet run --project samples/QuickDemo`
+4. **Enable Verbose Logging**: Use `--verbosity detailed` in dotnet commands
+
+#### For Performance Issues:
+1. **Review Metrics**: Check TPS and memory usage in workflow outputs
+2. **Compare Baselines**: Look at historical performance trends
+3. **Device Comparison**: Compare CPU vs GPU vs NPU performance
+4. **Enable Memory Monitoring**: Use `--memory-monitoring` flag for detailed tracking
+
+### URL Update Procedure
+
+If OpenVINO download URLs change:
+
+1. **Find New URLs**: Check OpenVINO releases and storage structure
+2. **Update All Workflows**: Modify build-test.yml, integration-test.yml, benchmark.yml
+3. **Test Changes**: Run workflows manually to verify downloads work
+4. **Update Documentation**: Update this README with new URL patterns
+
+**Current URL Pattern** (Fixed):
+```bash
+# Linux (try in order):
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu24_2025.2.0.0_x86_64.tar.gz
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu22_2025.2.0.0_x86_64.tar.gz
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/openvino_genai_ubuntu20_2025.2.0.0_x86_64.tar.gz
+
+# Windows (try in order):
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_windows_2025.2.0.0_x86_64.zip
+https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/windows/openvino_genai_runtime_windows_2025.2.0.0_x86_64.zip
+```
+
+**Important**: Note the path uses `2025.2` not `2025.2.0.0` - this was the key issue causing download failures.
 
 ## Customization
 

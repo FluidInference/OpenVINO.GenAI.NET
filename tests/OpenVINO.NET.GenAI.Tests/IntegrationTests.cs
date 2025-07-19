@@ -1,7 +1,7 @@
 using System.Diagnostics;
+using OpenVINO.NET.GenAI;
 using Xunit;
 using Xunit.Abstractions;
-using OpenVINO.NET.GenAI;
 
 namespace OpenVINO.NET.GenAI.Tests;
 

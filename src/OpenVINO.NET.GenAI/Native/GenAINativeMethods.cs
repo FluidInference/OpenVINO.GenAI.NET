@@ -7,7 +7,8 @@ namespace OpenVINO.NET.GenAI.Native;
 /// </summary>
 internal static class GenAINativeMethods
 {
-    // Use library name without extension - .NET will find the appropriate file (.dll on Windows, .so on Linux)
+    // Use standard library name without extension - .NET will find the appropriate file (.dll on Windows, .so on Linux)  
+    // This matches the official OpenVINO GenAI C API library name
     private const string DllName = "openvino_genai_c";
 
     #region LLM Pipeline Methods
@@ -169,6 +170,57 @@ internal static class GenAINativeMethods
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern ov_status_e ov_genai_generation_config_get_max_new_tokens(
         IntPtr config, [Out] out nuint max_new_tokens);
+
+    /// <summary>
+    /// Set minimum new tokens
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_generation_config_set_min_new_tokens(
+        IntPtr config, nuint value);
+
+    /// <summary>
+    /// Set ignore EOS flag
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_generation_config_set_ignore_eos(
+        IntPtr config, [MarshalAs(UnmanagedType.I1)] bool value);
+
+    /// <summary>
+    /// Set echo flag
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_generation_config_set_echo(
+        IntPtr config, [MarshalAs(UnmanagedType.I1)] bool value);
+
+    /// <summary>
+    /// Set number of beams for beam search
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_generation_config_set_num_beams(
+        IntPtr config, nuint value);
+
+    /// <summary>
+    /// Set length penalty for beam search
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_generation_config_set_length_penalty(
+        IntPtr config, float value);
+
+    /// <summary>
+    /// Set random seed
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_generation_config_set_rng_seed(
+        IntPtr config, nuint value);
+
+    /// <summary>
+    /// Set stop token IDs
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern ov_status_e ov_genai_generation_config_set_stop_token_ids(
+        IntPtr config,
+        [MarshalAs(UnmanagedType.LPArray)] long[] token_ids,
+        nuint token_ids_num);
 
     /// <summary>
     /// Validate generation config

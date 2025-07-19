@@ -5,13 +5,13 @@
     This script downloads the OpenVINO GenAI runtime package and extracts it to the build directory.
     It's used by CI/CD pipelines and can also be run locally for development.
 .PARAMETER Version
-    The version of OpenVINO GenAI to download (default: 2025.2.0.0rc4)
+    The version of OpenVINO GenAI to download (default: 2025.2.0.0)
 .PARAMETER OutputPath
     The path where the runtime should be extracted (default: build/native)
 .EXAMPLE
     .\download-openvino-runtime.ps1
 .EXAMPLE
-    .\download-openvino-runtime.ps1 -Version "2025.2.0.0rc4" -OutputPath "custom/path"
+    .\download-openvino-runtime.ps1 -Version "2025.2.0.0" -OutputPath "custom/path"
 #>
 
 param(
@@ -41,7 +41,7 @@ if (Test-Path $extractedPath) {
     exit 0
 }
 
-# Download URL  
+
 $baseUrl = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages"
 $majorMinorVersion = "2025.2"  # Use the major.minor version for the URL path
 $fileName = "openvino_genai_windows_${Version}_x86_64.zip"
