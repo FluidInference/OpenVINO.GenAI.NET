@@ -28,7 +28,8 @@ Write-Host "Output Path: $OutputPath"
 Write-Host ""
 
 # Create output directory
-$fullOutputPath = Join-Path $PSScriptRoot ".." $OutputPath
+$fullOutputPath = Join-Path $PSScriptRoot ".."
+$fullOutputPath = Join-Path $fullOutputPath $OutputPath
 $fullOutputPath = [System.IO.Path]::GetFullPath($fullOutputPath)
 New-Item -ItemType Directory -Force -Path $fullOutputPath | Out-Null
 
@@ -40,37 +41,28 @@ if (Test-Path $extractedPath) {
     exit 0
 }
 
-# Download URL
+
 $baseUrl = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages"
+$majorMinorVersion = "2025.2"  # Use the major.minor version for the URL path
 $fileName = "openvino_genai_windows_${Version}_x86_64.zip"
-$url = "$baseUrl/$Version/$fileName"
+$url = "$baseUrl/$majorMinorVersion/windows/$fileName"
 
 Write-Host "Downloading from: $url" -ForegroundColor Yellow
 $zipPath = Join-Path $fullOutputPath $fileName
 
 try {
-    # Download with progress
-    $webClient = New-Object System.Net.WebClient
-    $webClient.DownloadProgressChanged += {
-        Write-Progress -Activity "Downloading OpenVINO Runtime" -Status "$($_.ProgressPercentage)% Complete" -PercentComplete $_.ProgressPercentage
-    }
-    
-    $downloadTask = $webClient.DownloadFileTaskAsync($url, $zipPath)
-    while (-not $downloadTask.IsCompleted) {
-        Start-Sleep -Milliseconds 100
-    }
-    
-    if ($downloadTask.IsFaulted) {
-        throw $downloadTask.Exception
-    }
-    
-    Write-Progress -Activity "Downloading OpenVINO Runtime" -Completed
+    # Download with simple approach
+    Write-Host "Starting download..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
     Write-Host "Download completed!" -ForegroundColor Green
     
-    # Extract
+    # Verify download
+    $fileSize = (Get-Item $zipPath).Length
+    Write-Host "Downloaded file size: $([math]::Round($fileSize/1MB, 2)) MB" -ForegroundColor Cyan
+    
+    # Extract using Expand-Archive
     Write-Host "Extracting archive..." -ForegroundColor Yellow
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $fullOutputPath)
+    Expand-Archive -Path $zipPath -DestinationPath $fullOutputPath -Force
     
     # Remove zip file
     Remove-Item $zipPath -Force
@@ -104,6 +96,4 @@ try {
         Remove-Item $zipPath -Force
     }
     exit 1
-} finally {
-    $webClient.Dispose()
 }
