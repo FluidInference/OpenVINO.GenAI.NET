@@ -1,4 +1,4 @@
-name: Performance Benchmark
+name: Run Sample App
 
 on:
   pull_request:
@@ -26,7 +26,7 @@ env:
 
 jobs:
   benchmark:
-    name: Performance Benchmark
+    name: Build and Run
     runs-on: windows-latest
 
     steps:
@@ -77,8 +77,6 @@ jobs:
         key: model-${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}-v1
         restore-keys: |
           model-${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}-
-
-
 
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln

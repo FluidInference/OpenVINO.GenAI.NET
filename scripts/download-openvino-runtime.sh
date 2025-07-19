@@ -7,11 +7,13 @@ set -e
 
 VERSION=${1:-"2025.2.0.0"}
 OUTPUT_PATH=${2:-"build/native"}
+UBUNTU_VERSION=${3:-"24"}
 
 echo "OpenVINO GenAI Runtime Downloader"
 echo "================================="
 echo "Version: $VERSION"
 echo "Output Path: $OUTPUT_PATH"
+echo "Ubuntu Version: $UBUNTU_VERSION"
 echo ""
 
 # Get script directory and create output path
@@ -20,17 +22,17 @@ FULL_OUTPUT_PATH="$(cd "$SCRIPT_DIR/.." && pwd)/$OUTPUT_PATH"
 mkdir -p "$FULL_OUTPUT_PATH"
 
 # Check if already downloaded
-EXTRACTED_PATH="$FULL_OUTPUT_PATH/openvino_genai_ubuntu24_${VERSION}_x86_64"
+EXTRACTED_PATH="$FULL_OUTPUT_PATH/openvino_genai_ubuntu${UBUNTU_VERSION}_${VERSION}_x86_64"
 if [ -d "$EXTRACTED_PATH" ]; then
     echo "OpenVINO runtime already exists at: $EXTRACTED_PATH"
     echo "Delete this directory to force re-download."
     exit 0
 fi
 
-# Download URL
+# Download URL  
 BASE_URL="https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/"
-FILE_NAME="openvino_genai_ubuntu24_${VERSION}_x86_64.tar.gz"
-URL="$BASE_URL/$VERSION/$FILE_NAME"
+FILE_NAME="openvino_genai_ubuntu${UBUNTU_VERSION}_${VERSION}_x86_64.tar.gz"
+URL="$BASE_URL$FILE_NAME"
 
 echo "Downloading from: $URL"
 ZIP_PATH="$FULL_OUTPUT_PATH/$FILE_NAME"
