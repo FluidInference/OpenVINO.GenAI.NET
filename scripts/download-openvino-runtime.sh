@@ -78,6 +78,9 @@ fi
 LIB_COUNT=$(find "$TARGET_PATH" -name "*.so" | wc -l)
 echo "Copied $LIB_COUNT library files to: $TARGET_PATH"
 
+echo "Setting OPENVINO_RUNTIME_PATH environment variable in ~/.bashrc"
+echo "export OPENVINO_RUNTIME_PATH=$OPENVINO_RUNTIME_PATH" >> ~/.bashrc
+source ~/.bashrc
 
 echo ""
 echo "OpenVINO GenAI Runtime setup completed successfully!"
