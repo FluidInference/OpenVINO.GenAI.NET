@@ -215,54 +215,84 @@ internal static class NativeLibraryLoader
         // Let the default resolver handle other libraries
         return IntPtr.Zero;
     }
-
-    private static IntPtr LoadLibraryFromSearchPaths(string libraryName)
+    
+    private static bool TryLoad(string path, out IntPtr handle)
     {
+        handle = IntPtr.Zero;
+
+        if (!File.Exists(path))
+            return false;
+
+        try
+        {
+            handle = NativeLibrary.Load(path);
+            _loadedLibraries.Add(path);
+            Console.WriteLine($"Successfully loaded: {path}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load {path}: {ex.Message}");
+            return false;
+        }
+    }
+
+   private static IntPtr LoadLibraryFromSearchPaths(string libraryName)
+    {
+        // We copy the current list because we mutate _searchPaths elsewhere
         var searchPaths = _searchPaths.ToList();
 
-        // Also try the current directory and standard locations
+        // For Windows also probe the working directory first (unchanged behaviour)
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
             searchPaths.Insert(0, Environment.CurrentDirectory);
+
+        // ----------------------------------------------------
+        // Try exact filename first
+        // ----------------------------------------------------
+        foreach (var dir in searchPaths)
+        {
+            var candidate = Path.Combine(dir, libraryName);
+            if (TryLoad(candidate, out var handle))
+                return handle;
         }
 
-        foreach (var searchPath in searchPaths)
+        // ----------------------------------------------------
+        // Linux fallback: accept any "libfoo.so.*" version
+        // ----------------------------------------------------
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
+            libraryName.EndsWith(".so", StringComparison.Ordinal))
         {
-            var fullPath = Path.Combine(searchPath, libraryName);
-            if (File.Exists(fullPath))
+            var prefix = libraryName[..^3]; // strip ".so"
+            foreach (var dir in searchPaths)
             {
-                try
-                {
-                    var handle = NativeLibrary.Load(fullPath);
-                    _loadedLibraries.Add(fullPath);
-                    Console.WriteLine($"Successfully loaded: {fullPath}");
-                    return handle;
-                }
-                catch (Exception ex)
-                {
-                    // Log the detailed attempt and continue to next path
-                    Console.WriteLine($"Failed to load {fullPath}: {ex.Message}");
-                }
+                if (!Directory.Exists(dir)) continue;
+
+                var versioned =
+                    Directory.EnumerateFiles(dir, $"{prefix}.so*", SearchOption.TopDirectoryOnly)
+                            .OrderByDescending(Path.GetFileName); // highest version first
+
+                foreach (var file in versioned)
+                    if (TryLoad(file, out var handle))
+                        return handle;
             }
         }
 
-        // Provide detailed error information
-        var availableFiles = new List<string>();
-        foreach (var searchPath in searchPaths)
+        // ----------------------------------------------------
+        // Still not found → build a detailed diagnostics error
+        // ----------------------------------------------------
+        var available = new List<string>();
+        foreach (var dir in searchPaths.Where(Directory.Exists))
         {
-            if (Directory.Exists(searchPath))
-            {
-                var extension = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "*.dll" : "*.so";
-                var files = Directory.GetFiles(searchPath, extension, SearchOption.TopDirectoryOnly);
-                availableFiles.AddRange(files.Select(f => Path.GetFileName(f)));
-            }
+            var pattern = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "*.dll" : "*.so*";
+            available.AddRange(Directory.GetFiles(dir, pattern).Select(Path.GetFileName));
         }
 
-        var errorMessage = $"Failed to load native library '{libraryName}'. " +
-                          $"Searched paths: {string.Join(", ", searchPaths)}. " +
-                          $"Available files: {string.Join(", ", availableFiles.Distinct())}";
+        var msg =
+            $"Failed to load native library '{libraryName}'. " +
+            $"Searched paths: {string.Join(", ", searchPaths)}. " +
+            $"Available files: {string.Join(", ", available.Distinct())}";
 
-        throw new DllNotFoundException(errorMessage);
+        throw new DllNotFoundException(msg);
     }
 
     private static void PreloadWindowsDependencies()
@@ -300,14 +330,16 @@ internal static class NativeLibraryLoader
         // Critical dependencies for Linux in correct order
         var criticalDependencies = new[]
         {
-            "libopenvino.so",                    // Core OpenVINO runtime
-            "libopenvino_c.so",                  // Core C API
-            "libopenvino_intel_cpu_plugin.so",   // CPU device plugin
+            "libtbb.so.12",                     // ① TBB first
+            "libtbb.so",                        // ② un‑versioned helper
+            "libopenvino.so",                   // ③ core runtime
+            "libopenvino_c.so",                 // ④ C API
+            "libopenvino_intel_cpu_plugin.so",
             "libopenvino_intel_gpu_plugin.so",
+            "libOpenCL.so.1",
             "libopenvino_intel_npu_plugin.so",
-            "libopenvino_genai_c.so",            // GenAI C API
-            "libtbb.so",                         // Intel Threading Building Blocks
-            "libtbb.so.12"                       // Versioned TBB
+            "libopenvino_genai.so",            
+            "libopenvino_genai_c.so"           
         };
 
         foreach (var dependency in criticalDependencies)

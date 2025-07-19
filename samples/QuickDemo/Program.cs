@@ -323,11 +323,7 @@ class Program
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to run on {device}: {ex.Message}");
-            if (device.ToUpper() != "CPU")
-            {
-                Console.WriteLine("Trying CPU fallback...");
-                await RunSingleDeviceDemoAsync(modelPath, "CPU", memoryMonitoring);
-            }
+            Environment.Exit(1);
         }
     }
 

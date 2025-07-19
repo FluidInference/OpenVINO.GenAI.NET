@@ -310,12 +310,6 @@ jobs:
         Write-Host "======================================"
         Write-Host ""
         
-        # Determine number of iterations (default 3)
-        $iterations = 3
-        if ("${{ inputs.iterations }}" -ne "") {
-          $iterations = [int]"${{ inputs.iterations }}"
-        }
-        
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
         
         $allOutput = @()
@@ -323,26 +317,22 @@ jobs:
         $allOutput += ""
         $allOutput += "**Generated:** $timestamp"
         $allOutput += "**Platform:** win-x64"
-        $allOutput += "**Iterations:** $iterations"
         $allOutput += ""
         $allOutput += "``````"
         
-        for ($i = 1; $i -le $iterations; $i++) {
-          Write-Host "Iteration $i/$iterations..."
-          $startTime = Get-Date
-          $output = dotnet run --configuration Release -- --device CPU 2>&1
-          $endTime = Get-Date
-          $exitCode = $LASTEXITCODE
-          $elapsed = ($endTime - $startTime).TotalMilliseconds
-          
-          Write-Host $output
-          Write-Host "Exit Code: $exitCode, Time: $($elapsed.ToString('F0'))ms"
-          Write-Host ""
-          
-          $allOutput += "Iteration $i/$iterations (Exit Code: $exitCode, Time: $($elapsed.ToString('F0'))ms):"
-          $allOutput += $output
-          $allOutput += ""
-        }
+        $startTime = Get-Date
+        $output = dotnet run --configuration Release -- --device CPU 2>&1
+        $endTime = Get-Date
+        $exitCode = $LASTEXITCODE
+        $elapsed = ($endTime - $startTime).TotalMilliseconds
+        
+        Write-Host $output
+        Write-Host "Exit Code: $exitCode, Time: $($elapsed.ToString('F0'))ms"
+        Write-Host ""
+        
+        $allOutput += "Exit Code: $exitCode, Time: $($elapsed.ToString('F0'))ms):"
+        $allOutput += $output
+        $allOutput += ""
         
         $allOutput += "``````"
         

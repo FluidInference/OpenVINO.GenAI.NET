@@ -65,15 +65,22 @@ RUNTIME_PATH="$EXTRACTED_PATH/runtime"
 echo "Setting up runtime libraries..."
 mkdir -p "$TARGET_PATH"
 
-# Copy Release libraries
-if [ -d "$RUNTIME_PATH/lib/intel64" ]; then
-    cp "$RUNTIME_PATH"/lib/intel64/*.so* "$TARGET_PATH/" 2>/dev/null || true
-fi
+# 1️⃣  Copy OpenVINO core + plugins
+find "$RUNTIME_PATH/lib" -type f -name '*.so*' -exec cp -a --no-preserve=ownership '{}' "$TARGET_PATH" \;
 
-# Copy TBB libraries
-if [ -d "$RUNTIME_PATH/3rdparty/tbb/lib" ]; then
-    cp "$RUNTIME_PATH"/3rdparty/tbb/lib/*.so* "$TARGET_PATH/" 2>/dev/null || true
-fi
+# 2️⃣  Copy TBB (handles lib/intel64/gcc layout too)
+find "$RUNTIME_PATH/3rdparty/tbb/lib" -type f -name '*.so*' -exec cp -a --no-preserve=ownership '{}' "$TARGET_PATH" \;
+
+# 3️⃣  Duplicate missing SONAME links if Intel ever forgets them
+#     (e.g., create libopenvino.so.2520 → libopenvino.so.2025.2.0.0)
+cd "$TARGET_PATH"
+for so in *_genai.so *.so; do
+  [[ $so =~ \.so\.([0-9]+\.[0-9]+\.[0-9]+) ]] || continue
+  base="${so%%.so.*}.so"
+  shortver="${BASH_REMATCH[1]//./}"   # 25.2.0 => 2520
+  [[ -e "${base}.${shortver}" ]] || ln -s "$so" "${base}.${shortver}"
+done
+cd - >/dev/null
 
 LIB_COUNT=$(find "$TARGET_PATH" -name "*.so" | wc -l)
 echo "Copied $LIB_COUNT library files to: $TARGET_PATH"
