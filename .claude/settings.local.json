@@ -3,7 +3,12 @@
     "allow": [
       "Bash(powershell:*)",
       "Bash(dir:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(dotnet clean:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet pack:*)",
+      "Bash(dotnet nuget locals:*)",
+      "Bash(tar:*)"
     ],
     "deny": []
   }

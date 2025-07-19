@@ -115,3 +115,7 @@ dotnet run --project samples/QuickDemo
 
 ## Project Configuration and Environment Notes
 - Remember the important configuration, environment and test changes
+
+## Documentation and Publishing Steps
+- Add documentation steps for creating and publishing documentation for the project
+- Steps to follow for updating and maintaining project documentation
