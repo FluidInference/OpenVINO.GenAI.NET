@@ -244,16 +244,16 @@ class Program
     {
         Console.WriteLine("Summary Table:");
         Console.WriteLine("==============");
-        Console.WriteLine($"{"Prompt",-8} | {"Tokens/sec",10} | {"First Token",12} | {"Tokens",6} | {"Time (ms)",10}");
-        Console.WriteLine(new string('-', 55));
+        Console.WriteLine($"{"Prompt",-8} | {"Tokens/sec",10} | {"First Token",12} | {"Tokens",6} | {"Time (ms)",10} | {"Memory (MB)",12}");
+        Console.WriteLine(new string('-', 70));
 
         foreach (var iter in metrics.Iterations)
         {
-            Console.WriteLine($"{iter.Iteration,7}  | {iter.TokensPerSecond,10:F1} | {iter.FirstTokenLatencyMs,10:F0}ms | {iter.TokenCount,6} | {iter.TotalTimeMs,10:F0}");
+            Console.WriteLine($"{iter.Iteration,7}  | {iter.TokensPerSecond,10:F1} | {iter.FirstTokenLatencyMs,10:F0}ms | {iter.TokenCount,6} | {iter.TotalTimeMs,10:F0} | {iter.MemoryUsedMB,12:F1}");
         }
 
-        Console.WriteLine(new string('-', 55));
-        Console.WriteLine($"{"Average",-8} | {metrics.AverageTokensPerSecond,10:F1} | {metrics.AverageFirstTokenLatencyMs,10:F0}ms | {"-",6} | {"-",10}");
+        Console.WriteLine(new string('-', 70));
+        Console.WriteLine($"{"Average",-8} | {metrics.AverageTokensPerSecond,10:F1} | {metrics.AverageFirstTokenLatencyMs,10:F0}ms | {"-",6} | {"-",10} | {metrics.Iterations.Average(i => i.MemoryUsedMB),12:F1}");
         Console.WriteLine();
     }
 
@@ -280,7 +280,8 @@ class Program
             {
                 Console.WriteLine($"Prompt {i + 1}: \"{TestPrompts[i]}\"");
 
-                var initialMemory = memoryMonitoring ? GC.GetTotalMemory(false) : 0;
+                // Always monitor memory
+                var initialMemory = GC.GetTotalMemory(false);
                 var stopwatch = Stopwatch.StartNew();
                 var firstTokenTime = TimeSpan.Zero;
                 var tokenCount = 0;
@@ -305,15 +306,10 @@ class Program
 
                 var totalTime = stopwatch.Elapsed;
                 var tokensPerSecond = tokenCount / totalTime.TotalSeconds;
-                var finalMemory = memoryMonitoring ? GC.GetTotalMemory(false) : 0;
-                var memoryUsedMB = memoryMonitoring ? (finalMemory - initialMemory) / 1024.0 / 1024.0 : 0;
+                var finalMemory = GC.GetTotalMemory(false);
+                var memoryUsedMB = (finalMemory - initialMemory) / 1024.0 / 1024.0;
 
-                Console.WriteLine($"Performance: {tokensPerSecond:F1} tokens/sec, First token: {firstTokenTime.TotalMilliseconds:F0}ms");
-
-                if (memoryMonitoring)
-                {
-                    Console.WriteLine($"Memory: {memoryUsedMB:F1}MB used, {finalMemory / 1024.0 / 1024.0:F1}MB total");
-                }
+                Console.WriteLine($"Performance: {tokensPerSecond:F1} tokens/sec, First token: {firstTokenTime.TotalMilliseconds:F0}ms, Memory: {memoryUsedMB:F1}MB");
 
                 // Always add iteration metrics for summary table
                 overallMetrics?.Iterations.Add(new IterationMetrics
