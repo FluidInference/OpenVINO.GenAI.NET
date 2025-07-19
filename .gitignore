@@ -32,3 +32,5 @@ Models/
 TestResults/
 *.trx
 *.coverage
+
+.claude/*txt
