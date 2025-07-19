@@ -273,10 +273,8 @@ class Program
                 .WithTopP(TopP)
                 .WithSampling(true);
 
-            if (memoryMonitoring)
-            {
-                overallMetrics = new PerformanceMetrics { Device = device.ToUpper() };
-            }
+            // Always initialize metrics to show summary table
+            overallMetrics = new PerformanceMetrics { Device = device.ToUpper() };
 
             for (int i = 0; i < TestPrompts.Length; i++)
             {
@@ -315,28 +313,35 @@ class Program
                 if (memoryMonitoring)
                 {
                     Console.WriteLine($"Memory: {memoryUsedMB:F1}MB used, {finalMemory / 1024.0 / 1024.0:F1}MB total");
-
-                    overallMetrics?.Iterations.Add(new IterationMetrics
-                    {
-                        Iteration = i + 1,
-                        TokensPerSecond = tokensPerSecond,
-                        FirstTokenLatencyMs = firstTokenTime.TotalMilliseconds,
-                        TotalTimeMs = totalTime.TotalMilliseconds,
-                        MemoryUsedMB = memoryUsedMB,
-                        TotalMemoryMB = finalMemory / 1024.0 / 1024.0,
-                        TokenCount = tokenCount,
-                        Prompt = TestPrompts[i],
-                        Response = response
-                    });
                 }
+
+                // Always add iteration metrics for summary table
+                overallMetrics?.Iterations.Add(new IterationMetrics
+                {
+                    Iteration = i + 1,
+                    TokensPerSecond = tokensPerSecond,
+                    FirstTokenLatencyMs = firstTokenTime.TotalMilliseconds,
+                    TotalTimeMs = totalTime.TotalMilliseconds,
+                    MemoryUsedMB = memoryUsedMB,
+                    TotalMemoryMB = finalMemory / 1024.0 / 1024.0,
+                    TokenCount = tokenCount,
+                    Prompt = TestPrompts[i],
+                    Response = response
+                });
 
                 Console.WriteLine();
             }
 
-            if (memoryMonitoring && overallMetrics != null)
+            // Always show summary table
+            if (overallMetrics != null)
             {
-                await SavePerformanceMetricsAsync(overallMetrics);
                 PrintSummaryTable(overallMetrics);
+                
+                // Only save metrics file when memory monitoring is enabled
+                if (memoryMonitoring)
+                {
+                    await SavePerformanceMetricsAsync(overallMetrics);
+                }
             }
         }
         catch (Exception ex)
