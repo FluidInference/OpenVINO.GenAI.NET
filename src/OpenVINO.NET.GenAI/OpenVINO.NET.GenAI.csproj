@@ -49,9 +49,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Memory" Version="4.5.5" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
-    <PackageReference Include="System.Threading.Channels" Version="7.0.0" />
+    <PackageReference Include="System.Memory" Version="4.6.3" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
+    <PackageReference Include="System.Threading.Channels" Version="9.0.7" />
   </ItemGroup>
 
 
@@ -81,17 +81,13 @@
     <ItemGroup Condition="'$(OS)' == 'Windows_NT' AND Exists('..\..\build\native\runtimes\win-x64\native')">
       <WindowsNativeLibs Include="..\..\build\native\runtimes\win-x64\native\*.dll" />
     </ItemGroup>
-    <Copy SourceFiles="@(WindowsNativeLibs)" 
-          DestinationFolder="$(OutputPath)" 
-          Condition="'$(OS)' == 'Windows_NT' AND '@(WindowsNativeLibs)' != ''" />
+    <Copy SourceFiles="@(WindowsNativeLibs)" DestinationFolder="$(OutputPath)" Condition="'$(OS)' == 'Windows_NT' AND '@(WindowsNativeLibs)' != ''" />
     
     <!-- Linux -->
     <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND Exists('../../build/native/runtimes/linux-x64/native')">
       <LinuxNativeLibs Include="../../build/native/runtimes/linux-x64/native/*.so*" />
     </ItemGroup>
-    <Copy SourceFiles="@(LinuxNativeLibs)" 
-          DestinationFolder="$(OutputPath)" 
-          Condition="'$(OS)' != 'Windows_NT' AND '@(LinuxNativeLibs)' != ''" />
+    <Copy SourceFiles="@(LinuxNativeLibs)" DestinationFolder="$(OutputPath)" Condition="'$(OS)' != 'Windows_NT' AND '@(LinuxNativeLibs)' != ''" />
   </Target>
 
   <!-- Include MSBuild targets in NuGet package -->
