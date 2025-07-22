@@ -1,4 +1,4 @@
-# OpenVINO.NET
+# OpenVINO.GenAI.NET
 
 A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic .NET APIs for AI inference and generative AI tasks.
 
