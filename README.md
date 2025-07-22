@@ -100,30 +100,30 @@ await foreach (var token in pipeline.GenerateStreamAsync("Tell me a story", conf
 └─────────────────────────────────────────────────────────────┘
                                 ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                OpenVINO.NET.GenAI                          │
-│  • LLMPipeline (High-level API)                            │
-│  • GenerationConfig (Fluent configuration)                 │
-│  • ChatSession (Conversation management)                   │
-│  • IAsyncEnumerable streaming                              │
+│                OpenVINO.NET.GenAI                           │
+│  • LLMPipeline (High-level API)                             │
+│  • GenerationConfig (Fluent configuration)                  │
+│  • ChatSession (Conversation management)                    │
+│  • IAsyncEnumerable streaming                               │
 └─────────────────────────────────────────────────────────────┘
                                 ↓
 ┌─────────────────────────────────────────────────────────────┐
-│                OpenVINO.NET.Core                           │
-│  • Core OpenVINO functionality                             │
-│  • Model loading and inference                             │
+│                OpenVINO.NET.Core                            │
+│  • Core OpenVINO functionality                              │
+│  • Model loading and inference                              │
 └─────────────────────────────────────────────────────────────┘
                                 ↓
 ┌─────────────────────────────────────────────────────────────┐
-│               OpenVINO.NET.Native                          │
+│               OpenVINO.NET.Native                           │
 │  • P/Invoke declarations                                    │
-│  • SafeHandle resource management                          │
-│  • MSBuild targets for DLL deployment                      │
+│  • SafeHandle resource management                           │
+│  • MSBuild targets for DLL deployment                       │
 └─────────────────────────────────────────────────────────────┘
                                 ↓
 ┌─────────────────────────────────────────────────────────────┐
-│            OpenVINO GenAI C API                            │
-│  • Native OpenVINO GenAI runtime                           │
-│  • Version: 2025.2.0.0                                     │
+│            OpenVINO GenAI C API                             │
+│  • Native OpenVINO GenAI runtime                            │
+│  • Version: 2025.2.0.0                                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
