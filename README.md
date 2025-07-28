@@ -1,8 +1,8 @@
 # OpenVINO.GenAI.NET
 
-A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic .NET APIs for AI inference and generative AI tasks.
+A comprehensive C# wrapper for OpenVINO and OpenVINO GenAI, providing idiomatic .NET APIs for AI inference and generative AI tasks. Currently working on adding bindings for WhisperPipeline C API too. 
 
-**This is very much so in progress. Please do not use yet :). If this is something that might be helpful, leave an issue and let us know your usecase and we can try to incorporate as needed or else the main focus will be on Windows .NET apps **
+For LLM, an alternative to consider is [Microsoft's C# Foundry Local package](https://learn.microsoft.com/en-us/azure/ai-foundry/foundry-local/reference/reference-sdk?pivots=programming-language-csharp ) if you're just looking to run inference on GPU.
 
 ## Features
 
