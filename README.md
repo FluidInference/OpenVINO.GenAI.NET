@@ -140,36 +140,12 @@ await foreach (var token in pipeline.GenerateStreamAsync("Tell me a story", conf
 
 ### Prerequisites
 
-1. **Install .NET 9.0 SDK or later**
+1. **Install .NET 8.0 SDK or later**
    - Download from: https://dotnet.microsoft.com/download
 
 2. **Install OpenVINO GenAI Runtime 2025.2.0.0**
    - Download from: https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/
    - Extract to a directory in your PATH, or place DLLs in your application's output directory
-
-### Build from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/your-repo/OpenVINO-C-Sharp.git
-cd OpenVINO-C-Sharp
-
-# Build the solution
-dotnet build OpenVINO.NET.sln
-
-# Run the quick demo
-dotnet run --project samples/QuickDemo
-```
-
-## Performance Benchmarks
-
-### Expected Performance (Qwen3-0.6B-fp16-ov)
-
-| Device | Tokens/Second | First Token Latency | Notes |
-|--------|---------------|-------------------|--------|
-| CPU    | 12-15         | 400-600ms        | Always available |
-| GPU    | 20-30         | 200-400ms        | Requires compatible GPU |
-| NPU    | 15-25         | 300-500ms        | Intel NPU required |
 
 ### Benchmark Command
 
@@ -241,20 +217,6 @@ export OPENVINO_LOG_LEVEL=DEBUG
    dotnet build OpenVINO.NET.sln
    dotnet test tests/OpenVINO.NET.GenAI.Tests/
    ```
-
-3. **Code Style**
-   - Follow Microsoft C# coding conventions
-   - Use async/await patterns
-   - Implement proper resource disposal (using statements)
-   - Add XML documentation for public APIs
-
-### Adding New Features
-
-1. **P/Invoke Layer**: Add native method declarations in `GenAINativeMethods.cs`
-2. **SafeHandle**: Create appropriate handle classes for resource management
-3. **High-level API**: Implement user-friendly wrapper classes
-4. **Tests**: Add comprehensive unit tests
-5. **Documentation**: Update README and XML docs
 
 ## License
 
