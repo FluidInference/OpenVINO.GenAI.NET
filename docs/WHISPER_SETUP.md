@@ -73,30 +73,53 @@ LD_LIBRARY_PATH=/path/to/openvino.genai/build/src/c:/path/to/openvino.genai/buil
 dotnet WhisperDemo.dll --audio=/path/to/audio.wav --device=CPU
 ```
 
-## Working Example
+## Working Example Commands
 
-Using the test audio from OpenVINO GenAI:
+### Build the WhisperDemo
 ```bash
-cd samples/WhisperDemo/bin/Debug/net8.0
-
-LD_LIBRARY_PATH=/home/brandon/openvino.genai/build/src/c:/home/brandon/openvino.genai/build/openvino_genai:/home/brandon/openvino.genai/.venv/lib/python3.12/site-packages/openvino/libs \
-dotnet WhisperDemo.dll --audio=/home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav --device=CPU
+# Build the solution
+dotnet build samples/WhisperDemo/WhisperDemo.csproj
 ```
 
-Expected output:
+### Run with Test Model and Audio (Simplified API)
+Using the test model and audio from OpenVINO GenAI repository:
+
+```bash
+# From project root
+cd /home/brandon/OpenVINO.GenAI.NET
+
+# Run with dotnet run
+WHISPER_MODEL_PATH=/home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny \
+LD_LIBRARY_PATH=/home/brandon/openvino.genai/build/openvino_genai:/home/brandon/openvino.genai/.venv/lib/python3.12/site-packages/openvino/libs \
+dotnet run --project samples/WhisperDemo -- \
+/home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny \
+/home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav
+```
+
+### Run from Binary Directory
+```bash
+# Navigate to binary output directory
+cd samples/WhisperDemo/bin/Debug/net8.0
+
+# Run with required library paths
+LD_LIBRARY_PATH=/home/brandon/openvino.genai/build/openvino_genai:/home/brandon/openvino.genai/.venv/lib/python3.12/site-packages/openvino/libs \
+timeout 5 dotnet WhisperDemo.dll \
+/home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny \
+/home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav
+```
+
+### Expected Output (Simplified Demo)
 ```
 OpenVINO.NET Whisper Demo
 =========================
 
-Transcribing: /home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav
+Model: /home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny
+Audio: /home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav
 Device: CPU
-Task: Transcribe
-Timestamps: No
 
-Transcription completed in 523.45ms
-=====================================
- How are you doing today?
-=====================================
+Transcription:
+   How are you doing today?
+  Score: 1.0000
 ```
 
 ## Troubleshooting

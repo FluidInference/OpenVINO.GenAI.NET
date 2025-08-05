@@ -20,16 +20,8 @@ env:
 
 jobs:
   whisper-demo:
-    name: Whisper Demo - ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            runtime: linux-x64
-          - os: windows-latest
-            runtime: win-x64
+    name: Whisper Demo
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
@@ -39,34 +31,7 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
-    - name: Install Linux System Dependencies
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        echo "Installing Linux system dependencies for OpenVINO..."
-        sudo apt-get update
-        sudo apt-get install -y \
-          ocl-icd-libopencl1 \
-          opencl-headers \
-          clinfo \
-          libtbb12 \
-          libtbb-dev
-        
-        # Verify OpenCL installation
-        echo "Verifying OpenCL installation..."
-        if command -v clinfo >/dev/null 2>&1; then
-          clinfo || echo "Warning: No OpenCL devices found (this is expected in CI)"
-        fi
-        
-        # Check for OpenCL library
-        if [ -f "/usr/lib/x86_64-linux-gnu/libOpenCL.so.1" ]; then
-          echo "✓ OpenCL library found"
-        else
-          echo "⚠ OpenCL library not found at expected location"
-          find /usr -name "libOpenCL.so*" 2>/dev/null | head -5
-        fi
-
     - name: Install Visual C++ Redistributables
-      if: matrix.os == 'windows-latest'
       shell: pwsh
       run: |
         Write-Host "Installing Visual C++ Redistributables..."
@@ -118,51 +83,27 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
 
-    - name: Cache OpenVINO Runtime (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Cache OpenVINO Runtime
       id: cache-openvino-windows
       uses: actions/cache@v4
       with:
         path: build/native/runtimes/win-x64/native
         key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
 
-    - name: Cache OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      id: cache-openvino-linux
-      uses: actions/cache@v4
-      with:
-        path: build/native/runtimes/linux-x64/native
-        key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
-
-    - name: Download OpenVINO Runtime (Windows)
-      if: matrix.os == 'windows-latest' && steps.cache-openvino-windows.outputs.cache-hit != 'true'
+    - name: Download OpenVINO Runtime
+      if: steps.cache-openvino-windows.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         ./scripts/download-openvino-runtime.ps1 -Version "${{ env.OPENVINO_VERSION }}" -OutputPath "build/native"
         
-    - name: Set OPENVINO_RUNTIME_PATH for Windows
-      if: matrix.os == 'windows-latest'
+    - name: Set OPENVINO_RUNTIME_PATH
       shell: pwsh
       run: |
         $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
         "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
         Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
 
-    - name: Download OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
-      run: |
-        chmod +x scripts/download-openvino-runtime.sh
-        ./scripts/download-openvino-runtime.sh "${{ env.OPENVINO_VERSION }}" "build/native" "24"
-        
-    - name: Set OPENVINO_RUNTIME_PATH for Linux
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
-        echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
-        echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
-
-    - name: Verify OpenVINO Runtime Installation (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Verify OpenVINO Runtime Installation
       shell: pwsh
       run: |
         Write-Host "Verifying OpenVINO Runtime Installation..."
@@ -206,74 +147,12 @@ jobs:
           exit 1
         }
 
-    - name: Verify OpenVINO Runtime Installation (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        echo "Verifying OpenVINO Runtime Installation..."
-        echo "========================================"
-        
-        RUNTIME_PATH="build/native/runtimes/linux-x64/native"
-        
-        if [ -d "$RUNTIME_PATH" ]; then
-          echo "✓ Runtime directory exists: $RUNTIME_PATH"
-          
-          # List all files in the runtime directory
-          echo ""
-          echo "Files in runtime directory:"
-          ls -la "$RUNTIME_PATH"
-          
-          # Check for specific required libraries (both versioned and unversioned)
-          REQUIRED_LIBS=("libopenvino_genai_c.so" "libopenvino_c.so")
-          MISSING_LIBS=()
-          
-          for lib in "${REQUIRED_LIBS[@]}"; do
-            # Check for unversioned symlink (what .NET expects)
-            if [ -f "$RUNTIME_PATH/$lib" ] || [ -L "$RUNTIME_PATH/$lib" ]; then
-              if [ -L "$RUNTIME_PATH/$lib" ]; then
-                TARGET=$(readlink "$RUNTIME_PATH/$lib")
-                echo "✓ Found required library symlink: $lib → $TARGET"
-              else
-                echo "✓ Found required library: $lib"
-              fi
-            # Check for versioned library files
-            elif find "$RUNTIME_PATH" -name "$lib*" -type f | grep -q .; then
-              FOUND_LIB=$(find "$RUNTIME_PATH" -name "$lib*" -type f | head -1)
-              echo "⚠ Found versioned library: $FOUND_LIB (but missing unversioned symlink $lib)"
-              MISSING_LIBS+=("$lib")
-            else
-              echo "✗ Missing required library: $lib"
-              MISSING_LIBS+=("$lib")
-            fi
-          done
-          
-          if [ ${#MISSING_LIBS[@]} -eq 0 ]; then
-            echo ""
-            echo "✓ All required libraries are present"
-          else
-            echo ""
-            echo "❌ Missing libraries: ${MISSING_LIBS[*]}"
-            echo "This will cause runtime failures"
-            exit 1
-          fi
-        else
-          echo "❌ Runtime directory not found: $RUNTIME_PATH"
-          exit 1
-        fi
-
-    - name: Download Whisper Model (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Download Whisper Model
       shell: pwsh
       run: |
         ./scripts/download-whisper-model.ps1
 
-    - name: Download Whisper Model (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        chmod +x scripts/download-whisper-model.sh
-        ./scripts/download-whisper-model.sh
-
-    - name: Download Sample Audio (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Download Sample Audio
       shell: pwsh
       run: |
         if (Test-Path ./scripts/download-sample-audio.ps1) {
@@ -309,42 +188,10 @@ jobs:
           }
         }
 
-    - name: Download Sample Audio (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        if [ -f ./scripts/download-sample-audio.sh ]; then
-          chmod +x ./scripts/download-sample-audio.sh
-          ./scripts/download-sample-audio.sh
-        else
-          echo "Creating sample audio directory..."
-          mkdir -p samples/audio
-          
-          # Download audio files from Hugging Face FluidInference/audio dataset
-          declare -a AUDIO_FILES=(
-            "glm.wav:https://huggingface.co/datasets/FluidInference/audio/resolve/main/glm.wav"
-            "startup.wav:https://huggingface.co/datasets/FluidInference/audio/resolve/main/startup.wav"
-          )
-          
-          for audio_entry in "${AUDIO_FILES[@]}"; do
-            IFS=':' read -r filename url <<< "$audio_entry"
-            AUDIO_PATH="samples/audio/$filename"
-            echo "Downloading $filename..."
-            
-            if curl -L -o "$AUDIO_PATH" "$url"; then
-              echo "✓ Downloaded $filename to: $AUDIO_PATH"
-            else
-              echo "Warning: Failed to download $filename"
-              # Create a dummy file for testing
-              touch "$AUDIO_PATH"
-            fi
-          done
-        fi
-
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
 
-    - name: Setup Environment for OpenVINO (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Setup Environment for OpenVINO
       shell: pwsh
       run: |
         # Set the OpenVINO runtime path - this is where the DLLs are actually located
@@ -364,23 +211,7 @@ jobs:
         Write-Host "PATH now contains:"
         ($newPath -split ';') | ForEach-Object { Write-Host "  $_" }
 
-    - name: Setup Environment for OpenVINO (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        # Set the OpenVINO runtime path - this is where the libraries are actually located
-        RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
-        
-        # Set OPENVINO_RUNTIME_PATH environment variable (prioritized by NativeLibraryLoader)
-        echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
-        
-        # Set LD_LIBRARY_PATH for runtime linking
-        echo "LD_LIBRARY_PATH=$RUNTIME_PATH:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-        
-        echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
-        echo "Set LD_LIBRARY_PATH to: $RUNTIME_PATH:$LD_LIBRARY_PATH"
-
-    - name: Run WhisperDemo (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Run WhisperDemo
       shell: pwsh
       timeout-minutes: 5
       run: |
@@ -483,90 +314,10 @@ jobs:
         Get-Content "whisper-results.md" | Write-Host
         Write-Host "`n=== End Results ===`n"
 
-    - name: Run WhisperDemo (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      timeout-minutes: 5
-      run: |
-        TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-        
-        # Get absolute paths
-        MODEL_PATH="$(pwd)/Models/whisper-tiny-int4-ov-npu"
-        AUDIO_DIR="$(pwd)/samples/audio"
-        
-        echo "Model Path: $MODEL_PATH"
-        echo "Audio Dir: $AUDIO_DIR"
-        echo "OPENVINO_RUNTIME_PATH: $OPENVINO_RUNTIME_PATH"
-        echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-        echo "Checking if model exists..."
-        if [ -d "$MODEL_PATH" ]; then
-          echo "Model directory found"
-          ls -la "$MODEL_PATH" | head -20
-        else
-          echo "WARNING: Model directory not found at $MODEL_PATH"
-        fi
-        
-        # Navigate to WhisperDemo for binary output
-        cd samples/WhisperDemo
-        
-        {
-          echo "# Whisper Sample App Results - Linux x64"
-          echo ""
-          echo "**Generated:** $TIMESTAMP"
-          echo "**Platform:** linux-x64"
-          echo "**Model:** whisper-tiny-int4-ov-npu"
-          echo ""
-          
-          # Check if we have audio files
-          if ls "$AUDIO_DIR"/*.wav 2>/dev/null; then
-            echo "## Transcription Results"
-            echo ""
-            
-            AUDIO_COUNT=$(ls -1 "$AUDIO_DIR"/*.wav 2>/dev/null | wc -l)
-            echo "Found $AUDIO_COUNT audio files" >&2
-            
-            for audio in "$AUDIO_DIR"/*.wav; do
-              echo "Processing: $(basename "$audio")" >&2
-              echo "### $(basename "$audio")"
-              echo '```'
-              # Use timeout to prevent hanging
-              WHISPER_MODEL_PATH="$MODEL_PATH" timeout 30 dotnet run --configuration Release -- --audio "$audio" --device CPU 2>&1 || {
-                EXIT_CODE=$?
-                if [ $EXIT_CODE -eq 124 ]; then
-                  echo "Error: Process timed out after 30 seconds"
-                else
-                  echo "Error running transcription (exit code: $EXIT_CODE)"
-                fi
-              }
-              echo '```'
-              echo ""
-            done
-          else
-            echo "## Test Run"
-            echo '```'
-            echo "No audio files found, running with generated test audio" >&2
-            # Run with generated test audio and workflow flag
-            WHISPER_MODEL_PATH="$MODEL_PATH" timeout 30 dotnet run --configuration Release -- --device CPU --workflow 2>&1 || {
-              EXIT_CODE=$?
-              if [ $EXIT_CODE -eq 124 ]; then
-                echo "Error: Process timed out after 30 seconds"
-              else
-                echo "Error running demo (exit code: $EXIT_CODE)"
-              fi
-            }
-            echo '```'
-          fi
-        } > whisper-results.md
-        
-        echo ""
-        echo "=== Results ==="
-        cat whisper-results.md
-        echo "=== End Results ==="
-        echo ""
-
     - name: Upload Results
       uses: actions/upload-artifact@v4
       with:
-        name: whisper-results-${{ matrix.runtime }}
+        name: whisper-results-win-x64
         path: ./samples/WhisperDemo/whisper-results.md
 
     - name: Comment on PR
@@ -587,10 +338,9 @@ jobs:
               issue_number: context.issue.number,
             });
             
-            const platform = '${{ matrix.runtime }}';
             const botComment = comments.find(comment => 
               comment.user.type === 'Bot' && 
-              comment.body.includes(`Whisper Sample App Results - ${platform === 'win-x64' ? 'Windows' : 'Linux'} x64`)
+              comment.body.includes('Whisper Sample App Results - Windows x64')
             );
             
             if (botComment) {

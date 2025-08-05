@@ -33,16 +33,8 @@ env:
 
 jobs:
   benchmark:
-    name: Build and Run - ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            runtime: linux-x64
-          - os: windows-latest
-            runtime: win-x64
+    name: Build and Run
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
@@ -52,34 +44,7 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
-    - name: Install Linux System Dependencies
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        echo "Installing Linux system dependencies for OpenVINO..."
-        sudo apt-get update
-        sudo apt-get install -y \
-          ocl-icd-libopencl1 \
-          opencl-headers \
-          clinfo \
-          libtbb12 \
-          libtbb-dev
-        
-        # Verify OpenCL installation
-        echo "Verifying OpenCL installation..."
-        if command -v clinfo >/dev/null 2>&1; then
-          clinfo || echo "Warning: No OpenCL devices found (this is expected in CI)"
-        fi
-        
-        # Check for OpenCL library
-        if [ -f "/usr/lib/x86_64-linux-gnu/libOpenCL.so.1" ]; then
-          echo "✓ OpenCL library found"
-        else
-          echo "⚠ OpenCL library not found at expected location"
-          find /usr -name "libOpenCL.so*" 2>/dev/null | head -5
-        fi
-
     - name: Install Visual C++ Redistributables
-      if: matrix.os == 'windows-latest'
       shell: pwsh
       run: |
         Write-Host "Installing Visual C++ Redistributables..."
@@ -123,51 +88,27 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
 
-    - name: Cache OpenVINO Runtime (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Cache OpenVINO Runtime
       id: cache-openvino-windows
       uses: actions/cache@v4
       with:
         path: build/native/runtimes/win-x64/native
         key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
 
-    - name: Cache OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      id: cache-openvino-linux
-      uses: actions/cache@v4
-      with:
-        path: build/native/runtimes/linux-x64/native
-        key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
-
-    - name: Download OpenVINO Runtime (Windows)
-      if: matrix.os == 'windows-latest' && steps.cache-openvino-windows.outputs.cache-hit != 'true'
+    - name: Download OpenVINO Runtime
+      if: steps.cache-openvino-windows.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         ./scripts/download-openvino-runtime.ps1 -Version "${{ env.OPENVINO_VERSION }}" -OutputPath "build/native"
 
-    - name: Download OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
-      run: |
-        chmod +x scripts/download-openvino-runtime.sh
-        ./scripts/download-openvino-runtime.sh "${{ env.OPENVINO_VERSION }}" "build/native" "24"
-
-    - name: Set OPENVINO_RUNTIME_PATH (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Set OPENVINO_RUNTIME_PATH
       shell: pwsh
       run: |
         $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
         "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
         Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
 
-    - name: Set OPENVINO_RUNTIME_PATH (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
-        echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
-        echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
-
-    - name: Verify OpenVINO Runtime Installation (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Verify OpenVINO Runtime Installation
       shell: pwsh
       run: |
         Write-Host "Verifying OpenVINO Runtime Installation..."
@@ -211,60 +152,6 @@ jobs:
           exit 1
         }
 
-    - name: Verify OpenVINO Runtime Installation (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        echo "Verifying OpenVINO Runtime Installation..."
-        echo "========================================"
-        
-        RUNTIME_PATH="build/native/runtimes/linux-x64/native"
-        
-        if [ -d "$RUNTIME_PATH" ]; then
-          echo "✓ Runtime directory exists: $RUNTIME_PATH"
-          
-          # List all files in the runtime directory
-          echo ""
-          echo "Files in runtime directory:"
-          ls -la "$RUNTIME_PATH"
-          
-          # Check for specific required libraries (both versioned and unversioned)
-          REQUIRED_LIBS=("libopenvino_genai_c.so" "libopenvino_c.so")
-          MISSING_LIBS=()
-          
-          for lib in "${REQUIRED_LIBS[@]}"; do
-            # Check for unversioned symlink (what .NET expects)
-            if [ -f "$RUNTIME_PATH/$lib" ] || [ -L "$RUNTIME_PATH/$lib" ]; then
-              if [ -L "$RUNTIME_PATH/$lib" ]; then
-                TARGET=$(readlink "$RUNTIME_PATH/$lib")
-                echo "✓ Found required library symlink: $lib → $TARGET"
-              else
-                echo "✓ Found required library: $lib"
-              fi
-            # Check for versioned library files
-            elif find "$RUNTIME_PATH" -name "$lib*" -type f | grep -q .; then
-              FOUND_LIB=$(find "$RUNTIME_PATH" -name "$lib*" -type f | head -1)
-              echo "⚠ Found versioned library: $FOUND_LIB (but missing unversioned symlink $lib)"
-              MISSING_LIBS+=("$lib")
-            else
-              echo "✗ Missing required library: $lib"
-              MISSING_LIBS+=("$lib")
-            fi
-          done
-          
-          if [ ${#MISSING_LIBS[@]} -eq 0 ]; then
-            echo ""
-            echo "✓ All required libraries are present"
-          else
-            echo ""
-            echo "❌ Missing libraries: ${MISSING_LIBS[*]}"
-            echo "This will cause runtime failures"
-            exit 1
-          fi
-        else
-          echo "❌ Runtime directory not found: $RUNTIME_PATH"
-          exit 1
-        fi
-
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
 
@@ -304,50 +191,7 @@ jobs:
           Write-Host "✓ Model already cached"
         }
 
-    - name: Download Benchmark Model (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      working-directory: ./samples/QuickDemo
-      run: |
-        mkdir -p Models
-        cd Models
-        
-        # Use model name from input or default
-        MODEL_NAME="${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
-        MODEL_DIR=$(basename "$MODEL_NAME")
-        
-        if [ ! -d "$MODEL_DIR" ] || [ ! -f "$MODEL_DIR/openvino_model.xml" ]; then
-          echo "Downloading model: $MODEL_NAME"
-          
-          mkdir -p "$MODEL_DIR"
-          cd "$MODEL_DIR"
-          
-          # Download key files
-          FILES=(
-            "openvino_model.xml"
-            "openvino_model.bin"
-            "openvino_tokenizer.xml"
-            "openvino_tokenizer.bin"
-            "openvino_detokenizer.xml"
-            "openvino_detokenizer.bin"
-            "config.json"
-            "generation_config.json"
-          )
-          
-          for file in "${FILES[@]}"; do
-            echo "Downloading $file..."
-            if ! curl -L -f -o "$file" "https://huggingface.co/$MODEL_NAME/resolve/main/$file" --user-agent "OpenVINO.NET/1.0"; then
-              echo "Warning: Failed to download $file (may be optional)"
-            fi
-          done
-          
-          cd ..
-          echo "✓ Model download completed"
-        else
-          echo "✓ Model already cached"
-        fi
-
-    - name: Set Model Path Environment (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Set Model Path Environment
       shell: pwsh
       run: |
         $MODEL_NAME = "${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
@@ -355,16 +199,7 @@ jobs:
         $MODEL_PATH = "$(Get-Location)/samples/QuickDemo/Models/$MODEL_DIR"
         "QUICKDEMO_MODEL_PATH=$MODEL_PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-    - name: Set Model Path Environment (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        MODEL_NAME="${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}"
-        MODEL_DIR=$(basename "$MODEL_NAME")
-        MODEL_PATH="$(pwd)/samples/QuickDemo/Models/$MODEL_DIR"
-        echo "QUICKDEMO_MODEL_PATH=$MODEL_PATH" >> $GITHUB_ENV
-
-    - name: Setup Environment for OpenVINO (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Setup Environment for OpenVINO
       shell: pwsh
       run: |
         # Set the OpenVINO runtime path - this is where the DLLs are actually located
@@ -383,24 +218,8 @@ jobs:
         Write-Host "Verifying PATH update..."
         Write-Host "PATH now contains:"
         ($newPath -split ';') | ForEach-Object { Write-Host "  $_" }
-
-    - name: Setup Environment for OpenVINO (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        # Set the OpenVINO runtime path - this is where the libraries are actually located
-        RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
         
-        # Set OPENVINO_RUNTIME_PATH environment variable (prioritized by NativeLibraryLoader)
-        echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
-        
-        # Set LD_LIBRARY_PATH for runtime linking
-        echo "LD_LIBRARY_PATH=$RUNTIME_PATH:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-        
-        echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
-        echo "Set LD_LIBRARY_PATH to: $RUNTIME_PATH:$LD_LIBRARY_PATH"
-        
-    - name: Run Performance Benchmark (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Run Performance Benchmark
       working-directory: ./samples/QuickDemo
       shell: pwsh
       run: |
@@ -442,50 +261,10 @@ jobs:
         $allOutput | Out-File -FilePath "benchmark-output.md" -Encoding UTF8
         Write-Host "Benchmark finished. Output saved to benchmark-output.md"
 
-    - name: Run Performance Benchmark (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      working-directory: ./samples/QuickDemo
-      run: |
-        # Debug environment before starting benchmark
-        echo "=== Environment Debug Information ==="
-        echo "Working Directory: $(pwd)"
-        echo "Model Path: $QUICKDEMO_MODEL_PATH"
-        echo "OPENVINO_RUNTIME_PATH: $OPENVINO_RUNTIME_PATH"
-        echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-        echo "======================================"
-        echo ""
-        
-        TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-        
-        {
-          echo "# Performance Benchmark Results - Linux x64"
-          echo ""
-          echo "**Generated:** $TIMESTAMP"
-          echo "**Platform:** linux-x64"
-          echo ""
-          echo '```'
-          
-          START_TIME=$(date +%s%3N)
-          set +e  # Don't exit on error
-          OUTPUT=$(dotnet run --configuration Release -- --device CPU 2>&1)
-          EXIT_CODE=$?
-          set -e
-          END_TIME=$(date +%s%3N)
-          ELAPSED=$((END_TIME - START_TIME))
-          
-          echo "$OUTPUT"
-          echo "Exit Code: $EXIT_CODE, Time: ${ELAPSED}ms"
-          echo ""
-          
-          echo '```'
-        } > benchmark-output.md
-        
-        echo "Benchmark finished. Output saved to benchmark-output.md"
-
     - name: Upload Benchmark Results
       uses: actions/upload-artifact@v4
       with:
-        name: benchmark-results-${{ matrix.runtime }}
+        name: benchmark-results-win-x64
         path: ./samples/QuickDemo/benchmark-output.md
 
     - name: Comment on PR
@@ -506,10 +285,9 @@ jobs:
               issue_number: context.issue.number,
             });
             
-            const platform = '${{ matrix.runtime }}';
             const botComment = comments.find(comment => 
               comment.user.type === 'Bot' && 
-              comment.body.includes(`Performance Benchmark Results - ${platform === 'win-x64' ? 'Windows' : 'Linux'} x64`)
+              comment.body.includes('Performance Benchmark Results - Windows x64')
             );
             
             if (botComment) {
