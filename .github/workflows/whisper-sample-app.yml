@@ -129,15 +129,6 @@ jobs:
           }
         }
 
-    - name: Set WHISPER_MODEL_PATH
-      run: |
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          echo "WHISPER_MODEL_PATH=${{ github.workspace }}\Models\whisper-tiny-int4-ov-npu" >> $GITHUB_ENV
-        else
-          echo "WHISPER_MODEL_PATH=${{ github.workspace }}/Models/whisper-tiny-int4-ov-npu" >> $GITHUB_ENV
-        fi
-      shell: bash
-
     - name: Download Sample Audio (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
@@ -172,10 +163,19 @@ jobs:
 
     - name: Run WhisperDemo (Windows)
       if: matrix.os == 'windows-latest'
-      working-directory: ./samples/WhisperDemo
       shell: pwsh
       run: |
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        
+        # Get absolute paths
+        $modelPath = "$(Get-Location)\Models\whisper-tiny-int4-ov-npu"
+        $audioDir = "$(Get-Location)\samples\audio"
+        
+        # Set environment variable for model path
+        $env:WHISPER_MODEL_PATH = $modelPath
+        
+        # Navigate to WhisperDemo for binary output
+        Set-Location samples\WhisperDemo
         
         $output = @()
         $output += "# Whisper Sample App Results - Windows x64"
@@ -186,7 +186,7 @@ jobs:
         $output += ""
         
         # Check if we have audio files
-        $audioFiles = Get-ChildItem -Path "../audio" -Filter "*.wav" -ErrorAction SilentlyContinue
+        $audioFiles = Get-ChildItem -Path $audioDir -Filter "*.wav" -ErrorAction SilentlyContinue
         
         if ($audioFiles) {
           $output += "## Transcription Results"
@@ -221,9 +221,18 @@ jobs:
 
     - name: Run WhisperDemo (Linux)
       if: matrix.os == 'ubuntu-latest'
-      working-directory: ./samples/WhisperDemo
       run: |
         TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+        
+        # Get absolute paths
+        MODEL_PATH="$(pwd)/Models/whisper-tiny-int4-ov-npu"
+        AUDIO_DIR="$(pwd)/samples/audio"
+        
+        # Set up library path
+        export LD_LIBRARY_PATH="$(pwd)/build/native/runtimes/linux-x64/native:$LD_LIBRARY_PATH"
+        
+        # Navigate to WhisperDemo for binary output
+        cd samples/WhisperDemo
         
         {
           echo "# Whisper Sample App Results - Linux x64"
@@ -234,14 +243,14 @@ jobs:
           echo ""
           
           # Check if we have audio files
-          if ls ../audio/*.wav 2>/dev/null; then
+          if ls "$AUDIO_DIR"/*.wav 2>/dev/null; then
             echo "## Transcription Results"
             echo ""
             
-            for audio in ../audio/*.wav; do
+            for audio in "$AUDIO_DIR"/*.wav; do
               echo "### $(basename "$audio")"
               echo '```'
-              dotnet run --configuration Release -- --audio "$audio" --device CPU 2>&1 || echo "Error running transcription"
+              WHISPER_MODEL_PATH="$MODEL_PATH" dotnet run --configuration Release -- --audio "$audio" --device CPU 2>&1 || echo "Error running transcription"
               echo '```'
               echo ""
             done
@@ -249,7 +258,7 @@ jobs:
             echo "## Test Run"
             echo '```'
             # Run with generated test audio
-            dotnet run --configuration Release -- --device CPU 2>&1 || echo "Error running demo"
+            WHISPER_MODEL_PATH="$MODEL_PATH" dotnet run --configuration Release -- --device CPU 2>&1 || echo "Error running demo"
             echo '```'
           fi
         } > whisper-results.md
