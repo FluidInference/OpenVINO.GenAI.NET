@@ -39,6 +39,32 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    - name: Install Visual C++ Redistributables
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        Write-Host "Installing Visual C++ Redistributables..."
+        
+        # Download and install VC++ redistributables
+        $vcRedistUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        $vcRedistPath = "vc_redist.x64.exe"
+        
+        try {
+          Invoke-WebRequest -Uri $vcRedistUrl -OutFile $vcRedistPath
+          
+          # Install silently
+          Start-Process -FilePath $vcRedistPath -ArgumentList "/install", "/quiet", "/norestart" -Wait
+          
+          Write-Host "✓ Visual C++ Redistributables installed successfully"
+        } catch {
+          Write-Host "Warning: Failed to install Visual C++ Redistributables: $($_.Exception.Message)"
+          Write-Host "This may cause native library loading issues"
+        } finally {
+          if (Test-Path $vcRedistPath) {
+            Remove-Item $vcRedistPath -Force
+          }
+        }
+
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -66,8 +92,24 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
 
-    - name: Download OpenVINO Runtime (Windows)
+    - name: Cache OpenVINO Runtime (Windows)
       if: matrix.os == 'windows-latest'
+      id: cache-openvino-windows
+      uses: actions/cache@v4
+      with:
+        path: build/native/runtimes/win-x64/native
+        key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
+
+    - name: Cache OpenVINO Runtime (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      id: cache-openvino-linux
+      uses: actions/cache@v4
+      with:
+        path: build/native/runtimes/linux-x64/native
+        key: openvino-runtime-linux-${{ env.OPENVINO_VERSION }}
+
+    - name: Download OpenVINO Runtime (Windows)
+      if: matrix.os == 'windows-latest' && steps.cache-openvino-windows.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         ./scripts/download-openvino-runtime.ps1 -Version "${{ env.OPENVINO_VERSION }}" -OutputPath "build/native"
@@ -81,7 +123,7 @@ jobs:
         Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
 
     - name: Download OpenVINO Runtime (Linux)
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-latest' && steps.cache-openvino-linux.outputs.cache-hit != 'true'
       run: |
         chmod +x scripts/download-openvino-runtime.sh
         ./scripts/download-openvino-runtime.sh "${{ env.OPENVINO_VERSION }}" "build/native" "24"
@@ -92,6 +134,105 @@ jobs:
         RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
         echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
         echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
+
+    - name: Verify OpenVINO Runtime Installation (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        Write-Host "Verifying OpenVINO Runtime Installation..."
+        Write-Host "========================================"
+        
+        $runtimePath = "build/native/runtimes/win-x64/native"
+        
+        if (Test-Path $runtimePath) {
+          Write-Host "✓ Runtime directory exists: $runtimePath"
+          
+          # List all files in the runtime directory
+          Write-Host ""
+          Write-Host "Files in runtime directory:"
+          Get-ChildItem -Path $runtimePath -Recurse | Format-Table Name, Length, LastWriteTime
+          
+          # Check for specific required DLLs
+          $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll")
+          $missingDlls = @()
+          
+          foreach ($dll in $requiredDlls) {
+            $found = Get-ChildItem -Path $runtimePath -Filter $dll -Recurse -ErrorAction SilentlyContinue
+            if ($found) {
+              Write-Host "✓ Found required DLL: $dll at $($found[0].FullName)"
+            } else {
+              Write-Host "✗ Missing required DLL: $dll"
+              $missingDlls += $dll
+            }
+          }
+          
+          if ($missingDlls.Count -eq 0) {
+            Write-Host ""
+            Write-Host "✓ All required DLLs are present"
+          } else {
+            Write-Host ""
+            Write-Host "❌ Missing DLLs: $($missingDlls -join ', ')"
+            Write-Host "This will cause runtime failures"
+            exit 1
+          }
+        } else {
+          Write-Host "❌ Runtime directory not found: $runtimePath"
+          exit 1
+        }
+
+    - name: Verify OpenVINO Runtime Installation (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "Verifying OpenVINO Runtime Installation..."
+        echo "========================================"
+        
+        RUNTIME_PATH="build/native/runtimes/linux-x64/native"
+        
+        if [ -d "$RUNTIME_PATH" ]; then
+          echo "✓ Runtime directory exists: $RUNTIME_PATH"
+          
+          # List all files in the runtime directory
+          echo ""
+          echo "Files in runtime directory:"
+          ls -la "$RUNTIME_PATH"
+          
+          # Check for specific required libraries (both versioned and unversioned)
+          REQUIRED_LIBS=("libopenvino_genai_c.so" "libopenvino_c.so")
+          MISSING_LIBS=()
+          
+          for lib in "${REQUIRED_LIBS[@]}"; do
+            # Check for unversioned symlink (what .NET expects)
+            if [ -f "$RUNTIME_PATH/$lib" ] || [ -L "$RUNTIME_PATH/$lib" ]; then
+              if [ -L "$RUNTIME_PATH/$lib" ]; then
+                TARGET=$(readlink "$RUNTIME_PATH/$lib")
+                echo "✓ Found required library symlink: $lib → $TARGET"
+              else
+                echo "✓ Found required library: $lib"
+              fi
+            # Check for versioned library files
+            elif find "$RUNTIME_PATH" -name "$lib*" -type f | grep -q .; then
+              FOUND_LIB=$(find "$RUNTIME_PATH" -name "$lib*" -type f | head -1)
+              echo "⚠ Found versioned library: $FOUND_LIB (but missing unversioned symlink $lib)"
+              MISSING_LIBS+=("$lib")
+            else
+              echo "✗ Missing required library: $lib"
+              MISSING_LIBS+=("$lib")
+            fi
+          done
+          
+          if [ ${#MISSING_LIBS[@]} -eq 0 ]; then
+            echo ""
+            echo "✓ All required libraries are present"
+          else
+            echo ""
+            echo "❌ Missing libraries: ${MISSING_LIBS[*]}"
+            echo "This will cause runtime failures"
+            exit 1
+          fi
+        else
+          echo "❌ Runtime directory not found: $RUNTIME_PATH"
+          exit 1
+        fi
 
     - name: Download Whisper Model (Windows)
       if: matrix.os == 'windows-latest'
@@ -115,17 +256,30 @@ jobs:
           Write-Host "Creating sample audio directory..."
           New-Item -ItemType Directory -Path "samples/audio" -Force
           
-          # Download a simple test audio file
-          $audioUrl = "https://sample-files.com/download/audio/wav/sample-3s.wav"
-          $audioPath = "samples/audio/sample1.wav"
+          # Download audio files from Hugging Face FluidInference/audio dataset
+          $audioFiles = @(
+            @{
+              url = "https://huggingface.co/datasets/FluidInference/audio/resolve/main/glm.wav"
+              filename = "glm.wav"
+            },
+            @{
+              url = "https://huggingface.co/datasets/FluidInference/audio/resolve/main/startup.wav"
+              filename = "startup.wav"
+            }
+          )
           
-          try {
-            Invoke-WebRequest -Uri $audioUrl -OutFile $audioPath -UseBasicParsing
-            Write-Host "Downloaded sample audio to: $audioPath"
-          } catch {
-            Write-Host "Warning: Failed to download sample audio"
-            # Create a dummy file for testing
-            New-Item -ItemType File -Path $audioPath -Force
+          foreach ($audio in $audioFiles) {
+            $audioPath = "samples/audio/$($audio.filename)"
+            Write-Host "Downloading $($audio.filename)..."
+            
+            try {
+              Invoke-WebRequest -Uri $audio.url -OutFile $audioPath -UseBasicParsing
+              Write-Host "✓ Downloaded $($audio.filename) to: $audioPath"
+            } catch {
+              Write-Host "Warning: Failed to download $($audio.filename): $($_.Exception.Message)"
+              # Create a dummy file for testing
+              New-Item -ItemType File -Path $audioPath -Force
+            }
           }
         }
 
@@ -139,27 +293,65 @@ jobs:
           echo "Creating sample audio directory..."
           mkdir -p samples/audio
           
-          # Download a simple test audio file
-          AUDIO_URL="https://sample-files.com/download/audio/wav/sample-3s.wav"
-          AUDIO_PATH="samples/audio/sample1.wav"
+          # Download audio files from Hugging Face FluidInference/audio dataset
+          declare -a AUDIO_FILES=(
+            "glm.wav:https://huggingface.co/datasets/FluidInference/audio/resolve/main/glm.wav"
+            "startup.wav:https://huggingface.co/datasets/FluidInference/audio/resolve/main/startup.wav"
+          )
           
-          if curl -L -o "$AUDIO_PATH" "$AUDIO_URL"; then
-            echo "Downloaded sample audio to: $AUDIO_PATH"
-          else
-            echo "Warning: Failed to download sample audio"
-            # Create a dummy file for testing
-            touch "$AUDIO_PATH"
-          fi
+          for audio_entry in "${AUDIO_FILES[@]}"; do
+            IFS=':' read -r filename url <<< "$audio_entry"
+            AUDIO_PATH="samples/audio/$filename"
+            echo "Downloading $filename..."
+            
+            if curl -L -o "$AUDIO_PATH" "$url"; then
+              echo "✓ Downloaded $filename to: $AUDIO_PATH"
+            else
+              echo "Warning: Failed to download $filename"
+              # Create a dummy file for testing
+              touch "$AUDIO_PATH"
+            fi
+          done
         fi
 
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
 
-    - name: Set LD_LIBRARY_PATH for Linux
+    - name: Setup Environment for OpenVINO (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        # Set the OpenVINO runtime path - this is where the DLLs are actually located
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        
+        # Set OPENVINO_RUNTIME_PATH environment variable (prioritized by NativeLibraryLoader)
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+        # Also add to PATH for compatibility
+        $currentPath = $env:PATH
+        $newPath = "$runtimePath;$currentPath"
+        "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+        Write-Host "Added OpenVINO runtime to PATH: $runtimePath"
+        Write-Host "Verifying PATH update..."
+        Write-Host "PATH now contains:"
+        ($newPath -split ';') | ForEach-Object { Write-Host "  $_" }
+
+    - name: Setup Environment for OpenVINO (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        LIBRARY_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
-        echo "LD_LIBRARY_PATH=$LIBRARY_PATH:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        # Set the OpenVINO runtime path - this is where the libraries are actually located
+        RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
+        
+        # Set OPENVINO_RUNTIME_PATH environment variable (prioritized by NativeLibraryLoader)
+        echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
+        
+        # Set LD_LIBRARY_PATH for runtime linking
+        echo "LD_LIBRARY_PATH=$RUNTIME_PATH:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+        
+        echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
+        echo "Set LD_LIBRARY_PATH to: $RUNTIME_PATH:$LD_LIBRARY_PATH"
 
     - name: Run WhisperDemo (Windows)
       if: matrix.os == 'windows-latest'
@@ -275,11 +467,9 @@ jobs:
         MODEL_PATH="$(pwd)/Models/whisper-tiny-int4-ov-npu"
         AUDIO_DIR="$(pwd)/samples/audio"
         
-        # Set up library path
-        export LD_LIBRARY_PATH="$(pwd)/build/native/runtimes/linux-x64/native:$LD_LIBRARY_PATH"
-        
         echo "Model Path: $MODEL_PATH"
         echo "Audio Dir: $AUDIO_DIR"
+        echo "OPENVINO_RUNTIME_PATH: $OPENVINO_RUNTIME_PATH"
         echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
         echo "Checking if model exists..."
         if [ -d "$MODEL_PATH" ]; then

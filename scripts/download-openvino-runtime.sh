@@ -71,15 +71,30 @@ find "$RUNTIME_PATH/lib" -type f -name '*.so*' -exec cp -a --no-preserve=ownersh
 # 2️⃣  Copy TBB (handles lib/intel64/gcc layout too)
 find "$RUNTIME_PATH/3rdparty/tbb/lib" -type f -name '*.so*' -exec cp -a --no-preserve=ownership '{}' "$TARGET_PATH" \;
 
-# 3️⃣  Duplicate missing SONAME links if Intel ever forgets them
-#     (e.g., create libopenvino.so.2520 → libopenvino.so.2025.2.0.0)
+# 3️⃣  Create required symlinks for .NET library loader
 cd "$TARGET_PATH"
+
+# Create unversioned symlinks that .NET expects (e.g., libopenvino_genai_c.so → libopenvino_genai_c.so.2025.3.0.0)
+for so in *.so.*; do
+  [[ $so =~ \.so\.([0-9]+\.[0-9]+\.[0-9]+) ]] || continue
+  base="${so%%.so.*}.so"
+  
+  # Create the unversioned symlink if it doesn't exist
+  if [[ ! -e "$base" ]]; then
+    ln -sf "$so" "$base"
+    echo "Created symlink: $base → $so"
+  fi
+done
+
+# Also create versioned SONAME links if Intel ever forgets them
+# (e.g., create libopenvino.so.2520 → libopenvino.so.2025.2.0.0)
 for so in *_genai.so *.so; do
   [[ $so =~ \.so\.([0-9]+\.[0-9]+\.[0-9]+) ]] || continue
   base="${so%%.so.*}.so"
   shortver="${BASH_REMATCH[1]//./}"   # 25.2.0 => 2520
   [[ -e "${base}.${shortver}" ]] || ln -s "$so" "${base}.${shortver}"
 done
+
 cd - >/dev/null
 
 LIB_COUNT=$(find "$TARGET_PATH" -name "*.so" | wc -l)
