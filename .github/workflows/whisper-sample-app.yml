@@ -260,7 +260,7 @@ jobs:
             
             try {
               # Use Start-Process with timeout to prevent hanging
-              $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "--audio", "`"$($audio.FullName)`"", "--device", "CPU" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
+              $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "`"$modelPath`"", "`"$($audio.FullName)`"" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
               
               # Wait max 30 seconds per file
               if (!$process.WaitForExit(30000)) {
@@ -288,7 +288,7 @@ jobs:
           
           # Run with generated test audio and timeout
           try {
-            $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "--device", "CPU", "--workflow" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
+            $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "`"$modelPath`"" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
             
             if (!$process.WaitForExit(30000)) {
               $process.Kill()

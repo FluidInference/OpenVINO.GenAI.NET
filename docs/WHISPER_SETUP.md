@@ -25,7 +25,7 @@ cmake --build build --config Release
 
 Option B: Download nightly build (check for Whisper support):
 ```bash
-./scripts/download-openvino-runtime.sh "2025.0.0.0.dev20250106" "build/native" "24"
+./scripts/download-openvino-runtime.sh "2025.3.0.0.dev20250805" "build/native" "24"
 ```
 
 ### Step 2: Download Whisper Model
@@ -82,18 +82,19 @@ dotnet build samples/WhisperDemo/WhisperDemo.csproj
 ```
 
 ### Run with Test Model and Audio (Simplified API)
-Using the test model and audio from OpenVINO GenAI repository:
+Assuming you have OpenVINO GenAI repository cloned alongside this project:
 
 ```bash
-# From project root
-cd /home/brandon/OpenVINO.GenAI.NET
+# Set up paths (adjust these to your setup)
+export OPENVINO_GENAI_PATH=../openvino.genai
+export WHISPER_MODEL_PATH=$OPENVINO_GENAI_PATH/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny
+export TEST_AUDIO=$OPENVINO_GENAI_PATH/ov_cache0/test_data/how_are_you_doing_today.wav
 
-# Run with dotnet run
-WHISPER_MODEL_PATH=/home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny \
-LD_LIBRARY_PATH=/home/brandon/openvino.genai/build/openvino_genai:/home/brandon/openvino.genai/.venv/lib/python3.12/site-packages/openvino/libs \
+# Run with dotnet run from project root
+LD_LIBRARY_PATH=$OPENVINO_GENAI_PATH/build/openvino_genai:$OPENVINO_GENAI_PATH/.venv/lib/python3.12/site-packages/openvino/libs \
 dotnet run --project samples/WhisperDemo -- \
-/home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny \
-/home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav
+$WHISPER_MODEL_PATH \
+$TEST_AUDIO
 ```
 
 ### Run from Binary Directory
@@ -101,11 +102,25 @@ dotnet run --project samples/WhisperDemo -- \
 # Navigate to binary output directory
 cd samples/WhisperDemo/bin/Debug/net8.0
 
+# Set up paths relative to current location
+export OPENVINO_GENAI_PATH=../../../../../../openvino.genai
+export WHISPER_MODEL_PATH=$OPENVINO_GENAI_PATH/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny
+export TEST_AUDIO=$OPENVINO_GENAI_PATH/ov_cache0/test_data/how_are_you_doing_today.wav
+
 # Run with required library paths
-LD_LIBRARY_PATH=/home/brandon/openvino.genai/build/openvino_genai:/home/brandon/openvino.genai/.venv/lib/python3.12/site-packages/openvino/libs \
-timeout 5 dotnet WhisperDemo.dll \
-/home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny \
-/home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav
+LD_LIBRARY_PATH=$OPENVINO_GENAI_PATH/build/openvino_genai:$OPENVINO_GENAI_PATH/.venv/lib/python3.12/site-packages/openvino/libs \
+dotnet WhisperDemo.dll $WHISPER_MODEL_PATH $TEST_AUDIO
+```
+
+### Using Local Model and Audio
+```bash
+# Using models and audio from this project
+cd samples/WhisperDemo/bin/Debug/net8.0
+
+# With downloaded model (after running download-whisper-model.sh)
+WHISPER_MODEL_PATH=../../../../Models/whisper-tiny-int4-ov-npu \
+LD_LIBRARY_PATH=runtimes/linux-x64/native:. \
+dotnet WhisperDemo.dll $WHISPER_MODEL_PATH ../../../../samples/audio/startup.wav
 ```
 
 ### Expected Output (Simplified Demo)
@@ -113,8 +128,8 @@ timeout 5 dotnet WhisperDemo.dll \
 OpenVINO.NET Whisper Demo
 =========================
 
-Model: /home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny
-Audio: /home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav
+Model: [model path]
+Audio: [audio file path]
 Device: CPU
 
 Transcription:

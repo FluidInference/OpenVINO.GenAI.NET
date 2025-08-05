@@ -29,7 +29,7 @@ permissions:
   issues: write
 
 env:
-  OPENVINO_VERSION: "2025.3.0.0.dev20250805"
+  OPENVINO_VERSION: "2025.3.0.0.dev20250801"
 
 jobs:
   benchmark:
@@ -155,8 +155,7 @@ jobs:
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
 
-    - name: Download Benchmark Model (Windows)
-      if: matrix.os == 'windows-latest'
+    - name: Download Benchmark Model
       working-directory: ./samples/QuickDemo
       shell: pwsh
       run: |
@@ -273,38 +272,12 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          const resultsPath = './samples/QuickDemo/benchmark-output.md';
-          
-          if (fs.existsSync(resultsPath)) {
-            const results = fs.readFileSync(resultsPath, 'utf8');
-            
-            // Find existing comment
-            const { data: comments } = await github.rest.issues.listComments({
+          if (fs.existsSync('./samples/QuickDemo/benchmark-output.md')) {
+            const summary = fs.readFileSync('./samples/QuickDemo/benchmark-output.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              body: summary
             });
-            
-            const botComment = comments.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes('Performance Benchmark Results - Windows x64')
-            );
-            
-            if (botComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: results
-              });
-            } else {
-              // Create new comment
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: results
-              });
-            }
           }
