@@ -23,7 +23,7 @@ public class WhisperIntegrationTests : IDisposable
 
         // Check for model path from environment variable or default location
         _modelPath = Environment.GetEnvironmentVariable("WHISPER_MODEL_PATH")
-            ?? Path.Combine(GetProjectRoot(), "Models", "whisper-tiny-int4-ov-npu");
+            ?? Path.Combine(GetProjectRoot(), "Models", "whisper-tiny-fp16-ov");
 
         _modelAvailable = Directory.Exists(_modelPath) &&
             File.Exists(Path.Combine(_modelPath, "openvino_model.xml"));
@@ -34,7 +34,7 @@ public class WhisperIntegrationTests : IDisposable
         {
             _output.WriteLine($"Whisper model not found at: {_modelPath}");
             _output.WriteLine("Integration tests will be skipped. Download the model from:");
-            _output.WriteLine("https://huggingface.co/FluidInference/whisper-tiny-int4-ov-npu");
+            _output.WriteLine("https://huggingface.co/OpenVINO/whisper-tiny-fp16-ov");
         }
     }
 

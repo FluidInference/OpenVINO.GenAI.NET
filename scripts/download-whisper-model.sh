@@ -1,13 +1,13 @@
 #!/bin/bash
 #
 # Downloads the Whisper model for OpenVINO from HuggingFace
-# Model: FluidInference/whisper-tiny-int4-ov-npu
+# Model: OpenVINO/whisper-tiny-fp16-ov
 #
 
 set -e
 
 # Default values
-MODEL_PATH="Models/whisper-tiny-int4-ov-npu"
+MODEL_PATH="Models/whisper-tiny-fp16-ov"
 FORCE=false
 
 # Parse arguments
@@ -23,7 +23,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             echo "Usage: $0 [-p MODEL_PATH] [-f]"
-            echo "  -p, --path    Path where model should be downloaded (default: Models/whisper-tiny-int4-ov-npu)"
+            echo "  -p, --path    Path where model should be downloaded (default: Models/whisper-tiny-fp16-ov)"
             echo "  -f, --force   Force re-download even if model exists"
             exit 0
             ;;
@@ -36,7 +36,7 @@ done
 
 echo "Whisper Model Downloader"
 echo "========================"
-echo "Model: FluidInference/whisper-tiny-int4-ov-npu"
+echo "Model: OpenVINO/whisper-tiny-fp16-ov"
 echo "Target Path: $MODEL_PATH"
 echo ""
 
@@ -60,7 +60,7 @@ echo "Creating directory: $FULL_MODEL_PATH"
 mkdir -p "$FULL_MODEL_PATH"
 
 # Base URL for HuggingFace
-BASE_URL="https://huggingface.co/OpenVINO/whisper-tiny-int8-ov/resolve/main"
+BASE_URL="https://huggingface.co/OpenVINO/whisper-tiny-fp16-ov/resolve/main"
 
 # Files to download
 FILES=(

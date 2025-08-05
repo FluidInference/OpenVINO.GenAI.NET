@@ -2,10 +2,10 @@
 .SYNOPSIS
     Downloads the Whisper model for OpenVINO from HuggingFace
 .DESCRIPTION
-    This script downloads the FluidInference/whisper-tiny-int4-ov-npu model for testing.
-    It's optimized for NPU but works on CPU as well.
+    This script downloads the OpenVINO/whisper-tiny-fp16-ov model for testing.
+    This is a standard FP16 precision model that works well on CPU/GPU.
 .PARAMETER ModelPath
-    The path where the model should be downloaded (default: Models/whisper-tiny-int4-ov-npu)
+    The path where the model should be downloaded (default: Models/whisper-tiny-fp16-ov)
 .PARAMETER Force
     Force re-download even if model exists
 .EXAMPLE
@@ -15,7 +15,7 @@
 #>
 
 param(
-    [string]$ModelPath = "Models/whisper-tiny-int4-ov-npu",
+    [string]$ModelPath = "Models/whisper-tiny-fp16-ov",
     [switch]$Force
 )
 
@@ -23,7 +23,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "Whisper Model Downloader" -ForegroundColor Cyan
 Write-Host "========================" -ForegroundColor Cyan
-Write-Host "Model: FluidInference/whisper-tiny-int4-ov-npu"
+Write-Host "Model: OpenVINO/whisper-tiny-fp16-ov"
 Write-Host "Target Path: $ModelPath"
 Write-Host ""
 
@@ -46,7 +46,7 @@ Write-Host "Creating directory: $fullModelPath" -ForegroundColor Yellow
 New-Item -ItemType Directory -Force -Path $fullModelPath | Out-Null
 
 # Files to download
-$baseUrl = "https://huggingface.co/FluidInference/whisper-tiny-int4-ov-npu/resolve/main"
+$baseUrl = "https://huggingface.co/OpenVINO/whisper-tiny-fp16-ov/resolve/main"
 $files = @(
     "openvino_encoder_model.xml",
     "openvino_encoder_model.bin",

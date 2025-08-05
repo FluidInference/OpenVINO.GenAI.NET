@@ -77,7 +77,7 @@ Models are cached between runs to speed up the CI pipeline.
 ## Test Models
 
 - **LLM Model**: `qwen3-0.6b-int4-ov` - Small quantized model for text generation
-- **Whisper Model**: `FluidInference/whisper-tiny-int4-ov-npu` - Optimized for NPU but works on CPU
+- **Whisper Model**: `OpenVINO/whisper-tiny-fp16-ov` - Standard FP16 precision model that works well on CPU/GPU
 
 ## Troubleshooting
 

@@ -11,9 +11,9 @@ class Program
 
         // Parse simple arguments: model path and audio file
         string modelPath = args.Length > 0 ? args[0] :
-            (Environment.GetEnvironmentVariable("WHISPER_MODEL_PATH") ?? "models/whisper-tiny-en");
+            (Environment.GetEnvironmentVariable("WHISPER_MODEL_PATH") ?? "Models/whisper-tiny-fp16-ov");
 
-        string audioFile = args.Length > 1 ? args[1] : "samples/audio/startup.wav";
+        string audioFile = args.Length > 1 ? args[1] : "how_are_you_doing_today.wav";
 
         string device = "CPU";
 

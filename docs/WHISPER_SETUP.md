@@ -88,7 +88,7 @@ Assuming you have OpenVINO GenAI repository cloned alongside this project:
 # Run with dotnet run from project root
 LD_LIBRARY_PATH=$OPENVINO_GENAI_PATH/build/openvino_genai:$OPENVINO_GENAI_PATH/.venv/lib/python3.12/site-packages/openvino/libs \
 dotnet run --project samples/WhisperDemo -- \
-./Models/whisper-tiny-int4-ov-npu \
+./Models/whisper-tiny-fp16-ov \
 ./how_are_you_doing_today.wav
 ```
 
@@ -113,7 +113,7 @@ dotnet WhisperDemo.dll $WHISPER_MODEL_PATH $TEST_AUDIO
 cd samples/WhisperDemo/bin/Debug/net8.0
 
 # With downloaded model (after running download-whisper-model.sh)
-WHISPER_MODEL_PATH=../../../../Models/whisper-tiny-int4-ov-npu \
+WHISPER_MODEL_PATH=../../../../Models/whisper-tiny-fp16-ov \
 LD_LIBRARY_PATH=runtimes/linux-x64/native:. \
 dotnet WhisperDemo.dll $WHISPER_MODEL_PATH ../../../../samples/audio/startup.wav
 ```
