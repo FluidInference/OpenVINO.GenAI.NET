@@ -8,7 +8,12 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet pack:*)",
       "Bash(dotnet nuget locals:*)",
-      "Bash(tar:*)"
+      "Bash(tar:*)",
+      "mcp__deepwiki__read_wiki_structure",
+      "mcp__deepwiki__ask_question",
+      "Bash(rm:*)",
+      "Bash(chmod:*)",
+      "Bash(./scripts/download-openvino-runtime.sh:*)"
     ],
     "deny": []
   }
