@@ -164,6 +164,7 @@ jobs:
     - name: Run WhisperDemo (Windows)
       if: matrix.os == 'windows-latest'
       shell: pwsh
+      timeout-minutes: 5
       run: |
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
         
@@ -173,6 +174,16 @@ jobs:
         
         # Set environment variable for model path
         $env:WHISPER_MODEL_PATH = $modelPath
+        
+        Write-Host "Model Path: $modelPath"
+        Write-Host "Audio Dir: $audioDir"
+        Write-Host "Checking if model exists..."
+        if (Test-Path $modelPath) {
+          Write-Host "Model directory found"
+          Get-ChildItem $modelPath | Select-Object Name | Out-String | Write-Host
+        } else {
+          Write-Host "WARNING: Model directory not found at $modelPath"
+        }
         
         # Navigate to WhisperDemo for binary output
         Set-Location samples\WhisperDemo
@@ -191,14 +202,29 @@ jobs:
         if ($audioFiles) {
           $output += "## Transcription Results"
           $output += ""
+          Write-Host "Found $($audioFiles.Count) audio files"
           
           foreach ($audio in $audioFiles) {
+            Write-Host "Processing: $($audio.Name)"
             $output += "### $($audio.Name)"
             $output += "``````"
             
             try {
-              $result = dotnet run --configuration Release -- --audio "$($audio.FullName)" --device CPU 2>&1
-              $output += $result
+              # Use Start-Process with timeout to prevent hanging
+              $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "--audio", "`"$($audio.FullName)`"", "--device", "CPU" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
+              
+              # Wait max 30 seconds per file
+              if (!$process.WaitForExit(30000)) {
+                $process.Kill()
+                $output += "Error: Process timed out after 30 seconds"
+              } else {
+                $stdout = Get-Content "temp_output.txt" -Raw -ErrorAction SilentlyContinue
+                $stderr = Get-Content "temp_error.txt" -Raw -ErrorAction SilentlyContinue
+                if ($stdout) { $output += $stdout }
+                if ($stderr) { $output += "STDERR: $stderr" }
+              }
+              
+              Remove-Item "temp_output.txt", "temp_error.txt" -ErrorAction SilentlyContinue
             } catch {
               $output += "Error: $($_.Exception.Message)"
             }
@@ -209,18 +235,39 @@ jobs:
         } else {
           $output += "## Test Run"
           $output += "``````"
-          # Run with generated test audio
-          $result = dotnet run --configuration Release -- --device CPU 2>&1
-          $output += $result
+          Write-Host "No audio files found, running with generated test audio"
+          
+          # Run with generated test audio and timeout
+          try {
+            $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "--device", "CPU", "--workflow" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
+            
+            if (!$process.WaitForExit(30000)) {
+              $process.Kill()
+              $output += "Error: Process timed out after 30 seconds"
+            } else {
+              $stdout = Get-Content "temp_output.txt" -Raw -ErrorAction SilentlyContinue
+              $stderr = Get-Content "temp_error.txt" -Raw -ErrorAction SilentlyContinue
+              if ($stdout) { $output += $stdout }
+              if ($stderr) { $output += "STDERR: $stderr" }
+            }
+            
+            Remove-Item "temp_output.txt", "temp_error.txt" -ErrorAction SilentlyContinue
+          } catch {
+            $output += "Error: $($_.Exception.Message)"
+          }
+          
           $output += "``````"
         }
         
-        # Save output
+        # Save and display output
         $output | Out-File -FilePath "whisper-results.md" -Encoding UTF8
-        Write-Host "Results saved to whisper-results.md"
+        Write-Host "`n=== Results ===`n"
+        Get-Content "whisper-results.md" | Write-Host
+        Write-Host "`n=== End Results ===`n"
 
     - name: Run WhisperDemo (Linux)
       if: matrix.os == 'ubuntu-latest'
+      timeout-minutes: 5
       run: |
         TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
         
@@ -230,6 +277,17 @@ jobs:
         
         # Set up library path
         export LD_LIBRARY_PATH="$(pwd)/build/native/runtimes/linux-x64/native:$LD_LIBRARY_PATH"
+        
+        echo "Model Path: $MODEL_PATH"
+        echo "Audio Dir: $AUDIO_DIR"
+        echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+        echo "Checking if model exists..."
+        if [ -d "$MODEL_PATH" ]; then
+          echo "Model directory found"
+          ls -la "$MODEL_PATH" | head -20
+        else
+          echo "WARNING: Model directory not found at $MODEL_PATH"
+        fi
         
         # Navigate to WhisperDemo for binary output
         cd samples/WhisperDemo
@@ -247,23 +305,47 @@ jobs:
             echo "## Transcription Results"
             echo ""
             
+            AUDIO_COUNT=$(ls -1 "$AUDIO_DIR"/*.wav 2>/dev/null | wc -l)
+            echo "Found $AUDIO_COUNT audio files" >&2
+            
             for audio in "$AUDIO_DIR"/*.wav; do
+              echo "Processing: $(basename "$audio")" >&2
               echo "### $(basename "$audio")"
               echo '```'
-              WHISPER_MODEL_PATH="$MODEL_PATH" dotnet run --configuration Release -- --audio "$audio" --device CPU 2>&1 || echo "Error running transcription"
+              # Use timeout to prevent hanging
+              WHISPER_MODEL_PATH="$MODEL_PATH" timeout 30 dotnet run --configuration Release -- --audio "$audio" --device CPU 2>&1 || {
+                EXIT_CODE=$?
+                if [ $EXIT_CODE -eq 124 ]; then
+                  echo "Error: Process timed out after 30 seconds"
+                else
+                  echo "Error running transcription (exit code: $EXIT_CODE)"
+                fi
+              }
               echo '```'
               echo ""
             done
           else
             echo "## Test Run"
             echo '```'
-            # Run with generated test audio
-            WHISPER_MODEL_PATH="$MODEL_PATH" dotnet run --configuration Release -- --device CPU 2>&1 || echo "Error running demo"
+            echo "No audio files found, running with generated test audio" >&2
+            # Run with generated test audio and workflow flag
+            WHISPER_MODEL_PATH="$MODEL_PATH" timeout 30 dotnet run --configuration Release -- --device CPU --workflow 2>&1 || {
+              EXIT_CODE=$?
+              if [ $EXIT_CODE -eq 124 ]; then
+                echo "Error: Process timed out after 30 seconds"
+              else
+                echo "Error running demo (exit code: $EXIT_CODE)"
+              fi
+            }
             echo '```'
           fi
         } > whisper-results.md
         
-        echo "Results saved to whisper-results.md"
+        echo ""
+        echo "=== Results ==="
+        cat whisper-results.md
+        echo "=== End Results ==="
+        echo ""
 
     - name: Upload Results
       uses: actions/upload-artifact@v4
