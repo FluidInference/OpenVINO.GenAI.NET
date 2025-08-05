@@ -129,6 +129,15 @@ jobs:
           }
         }
 
+    - name: Set WHISPER_MODEL_PATH
+      run: |
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          echo "WHISPER_MODEL_PATH=${{ github.workspace }}\Models\whisper-tiny-int4-ov-npu" >> $GITHUB_ENV
+        else
+          echo "WHISPER_MODEL_PATH=${{ github.workspace }}/Models/whisper-tiny-int4-ov-npu" >> $GITHUB_ENV
+        fi
+      shell: bash
+
     - name: Download Sample Audio (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |

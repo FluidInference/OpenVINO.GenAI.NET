@@ -5,8 +5,9 @@ namespace WhisperDemo;
 
 class Program
 {
-    // Model path - will be downloaded if not present
-    private static readonly string ModelPath = Path.GetFullPath("models/whisper-tiny-en");
+    // Model path - can be overridden via --model-path or WHISPER_MODEL_PATH env var
+    private static string ModelPath = "";
+    private const string DefaultModelPath = "models/whisper-tiny-en";
     private const string ModelUrl = "https://huggingface.co/openai/whisper-tiny.en"; // Example URL
 
     // Sample audio file paths
@@ -27,6 +28,18 @@ class Program
         // Language parameter removed - not currently supported in the C API
         var task = args.Contains("--translate") ? WhisperTask.Translate : WhisperTask.Transcribe;
         var workflow = args.Contains("--workflow");
+
+        // Model path from command line, environment variable, or default
+        var modelPathArg = args.FirstOrDefault(a => a.StartsWith("--model-path="))?.Split('=')[1];
+        ModelPath = modelPathArg
+            ?? Environment.GetEnvironmentVariable("WHISPER_MODEL_PATH")
+            ?? Path.GetFullPath(DefaultModelPath);
+
+        // Ensure it's a full path
+        if (!Path.IsPathRooted(ModelPath))
+        {
+            ModelPath = Path.GetFullPath(ModelPath);
+        }
 
         if (!workflow)
         {
@@ -74,6 +87,9 @@ class Program
         {
             Console.WriteLine($"Model not found at {ModelPath}");
             Console.WriteLine("Please download a Whisper model converted for OpenVINO.");
+            Console.WriteLine("\nYou can specify a model path using:");
+            Console.WriteLine("  --model-path=<path>  Command line argument");
+            Console.WriteLine("  WHISPER_MODEL_PATH   Environment variable");
             Console.WriteLine("\nExample models:");
             Console.WriteLine("- openai/whisper-tiny.en");
             Console.WriteLine("- openai/whisper-base.en");
