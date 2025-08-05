@@ -12,7 +12,7 @@ on:
       - ".github/workflows/pr-validation.yml"
 
 env:
-  OPENVINO_VERSION: "2025.2.0.0"
+  OPENVINO_VERSION: "2025.3.0.0.dev20250801"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 

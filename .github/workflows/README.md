@@ -11,7 +11,7 @@ This directory contains GitHub Actions workflows for the OpenVINO.NET project, p
 
 **What it does:**
 - Builds the entire solution on both Windows and Linux
-- Downloads OpenVINO GenAI runtime (2025.2.0.0 stable)
+- Downloads OpenVINO GenAI runtime (2025.3.0.0.dev20250801 nightly)
 - Runs unit tests with code coverage
 - Uploads test results and build artifacts
 - Publishes QuickDemo executables for both platforms

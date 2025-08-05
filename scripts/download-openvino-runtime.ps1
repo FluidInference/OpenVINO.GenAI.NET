@@ -11,11 +11,11 @@
 .EXAMPLE
     .\download-openvino-runtime.ps1
 .EXAMPLE
-    .\download-openvino-runtime.ps1 -Version "2025.2.0.0" -OutputPath "custom/path"
+    .\download-openvino-runtime.ps1 -Version "2025.3.0.0.dev20250801" -OutputPath "custom/path"
 #>
 
 param(
-    [string]$Version = "2025.2.0.0",
+    [string]$Version = "2025.3.0.0.dev20250801",
     [string]$OutputPath = "build/native"
 )
 
@@ -43,9 +43,8 @@ if (Test-Path $extractedPath) {
 
 
 $baseUrl = "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages"
-$majorMinorVersion = "2025.2"  # Use the major.minor version for the URL path
 $fileName = "openvino_genai_windows_${Version}_x86_64.zip"
-$url = "$baseUrl/$majorMinorVersion/windows/$fileName"
+$url = "$baseUrl/nightly/$Version/$fileName"
 
 Write-Host "Downloading from: $url" -ForegroundColor Yellow
 $zipPath = Join-Path $fullOutputPath $fileName
