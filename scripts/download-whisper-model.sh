@@ -49,7 +49,7 @@ FULL_MODEL_PATH="$PROJECT_ROOT/$MODEL_PATH"
 
 # Check if already downloaded
 if [ -d "$FULL_MODEL_PATH" ] && [ "$FORCE" = false ]; then
-    if [ -f "$FULL_MODEL_PATH/openvino_model.xml" ]; then
+    if [ -f "$FULL_MODEL_PATH/openvino_encoder_model.xml" ]; then
         echo "Model already exists at: $FULL_MODEL_PATH"
         echo "Use -f/--force to re-download."
         exit 0
@@ -64,8 +64,14 @@ BASE_URL="https://huggingface.co/FluidInference/whisper-tiny-int4-ov-npu/resolve
 
 # Files to download
 FILES=(
-    "openvino_model.xml"
-    "openvino_model.bin"
+    "openvino_encoder_model.xml"
+    "openvino_encoder_model.bin"
+    "openvino_decoder_model.xml"
+    "openvino_decoder_model.bin"
+    "openvino_tokenizer.xml"
+    "openvino_tokenizer.bin"
+    "openvino_detokenizer.xml"
+    "openvino_detokenizer.bin"
     "config.json"
     "generation_config.json"
     "preprocessor_config.json"
@@ -123,7 +129,12 @@ echo "Model downloaded successfully!"
 echo "Location: $FULL_MODEL_PATH"
 
 # Verify critical files
-CRITICAL_FILES=("openvino_model.xml" "openvino_model.bin")
+CRITICAL_FILES=(
+    "openvino_encoder_model.xml"
+    "openvino_encoder_model.bin"
+    "openvino_decoder_model.xml"
+    "openvino_decoder_model.bin"
+)
 for FILE in "${CRITICAL_FILES[@]}"; do
     if [ ! -f "$FULL_MODEL_PATH/$FILE" ]; then
         echo "Error: Critical file missing: $FILE"

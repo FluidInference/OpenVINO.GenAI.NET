@@ -34,8 +34,8 @@ $fullModelPath = [System.IO.Path]::GetFullPath($fullModelPath)
 
 # Check if already downloaded
 if ((Test-Path $fullModelPath) -and -not $Force) {
-    $xmlPath = Join-Path $fullModelPath "openvino_model.xml"
-    if (Test-Path $xmlPath) {
+    $encoderPath = Join-Path $fullModelPath "openvino_encoder_model.xml"
+    if (Test-Path $encoderPath) {
         Write-Host "Model already exists at: $fullModelPath" -ForegroundColor Green
         Write-Host "Use -Force to re-download." -ForegroundColor Yellow
         exit 0
@@ -48,8 +48,14 @@ New-Item -ItemType Directory -Force -Path $fullModelPath | Out-Null
 # Files to download
 $baseUrl = "https://huggingface.co/FluidInference/whisper-tiny-int4-ov-npu/resolve/main"
 $files = @(
-    "openvino_model.xml",
-    "openvino_model.bin",
+    "openvino_encoder_model.xml",
+    "openvino_encoder_model.bin",
+    "openvino_decoder_model.xml",
+    "openvino_decoder_model.bin",
+    "openvino_tokenizer.xml",
+    "openvino_tokenizer.bin",
+    "openvino_detokenizer.xml",
+    "openvino_detokenizer.bin",
     "config.json",
     "generation_config.json",
     "preprocessor_config.json",
@@ -108,7 +114,12 @@ Write-Host "Model downloaded successfully!" -ForegroundColor Green
 Write-Host "Location: $fullModelPath" -ForegroundColor Cyan
 
 # Verify critical files
-$criticalFiles = @("openvino_model.xml", "openvino_model.bin")
+$criticalFiles = @(
+    "openvino_encoder_model.xml",
+    "openvino_encoder_model.bin",
+    "openvino_decoder_model.xml",
+    "openvino_decoder_model.bin"
+)
 foreach ($file in $criticalFiles) {
     $path = Join-Path $fullModelPath $file
     if (-not (Test-Path $path)) {
