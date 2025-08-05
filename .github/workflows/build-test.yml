@@ -57,7 +57,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         chmod +x scripts/download-openvino-runtime.sh
-        ./scripts/download-openvino-runtime.sh "2025.3.0.0.dev20250801" "build/native" "22"
+        ./scripts/download-openvino-runtime.sh "2025.3.0.0.dev20250801" "build/native" "24"
         
     - name: Set OPENVINO_RUNTIME_PATH for Linux
       if: matrix.os == 'ubuntu-latest'
