@@ -13,7 +13,7 @@ on:
       - "scripts/download-openvino-runtime.*"
 
 env:
-  OPENVINO_VERSION: "2025.3.0.0.dev20250801"
+  OPENVINO_VERSION: "2025.3.0.0.dev20250805"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 

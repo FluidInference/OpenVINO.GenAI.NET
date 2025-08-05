@@ -119,3 +119,15 @@ dotnet run --project samples/QuickDemo
 ## Documentation and Publishing Steps
 - Add documentation steps for creating and publishing documentation for the project
 - Steps to follow for updating and maintaining project documentation
+
+## Whisper Pipeline Demo Steps
+- **Steps to run Whisper pipeline demo locally**:
+  - Clone the OpenVINO repository
+  - Navigate to the Whisper pipeline demo directory
+  - Ensure OpenVINO runtime is installed
+  - Download the Whisper model from the specified source
+  - Set up the necessary environment variables
+  - Run the demo with appropriate command-line arguments
+  - Verify input audio file compatibility
+  - Check device selection (CPU/GPU/NPU)
+  - Monitor console output for transcription results

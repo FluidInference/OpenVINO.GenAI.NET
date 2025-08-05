@@ -6,7 +6,7 @@ namespace WhisperDemo;
 class Program
 {
     // Model path - will be downloaded if not present
-    private const string ModelPath = "models/whisper-tiny-en";
+    private static readonly string ModelPath = Path.GetFullPath("models/whisper-tiny-en");
     private const string ModelUrl = "https://huggingface.co/openai/whisper-tiny.en"; // Example URL
 
     // Sample audio file paths

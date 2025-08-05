@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION=${1:-"2025.3.0.0.dev20250801"}
+VERSION=${1:-"2025.3.0.0.dev20250805"}
 OUTPUT_PATH=${2:-"build/native"}
 UBUNTU_VERSION=${3:-"24"}
 
