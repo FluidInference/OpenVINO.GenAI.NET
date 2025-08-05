@@ -3,6 +3,13 @@ name: Run Sample App
 on:
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'samples/**'
+      - '*.sln'
+      - '**/*.csproj'
+      - '.github/workflows/sample-app.yml'
+      - 'scripts/download-openvino-runtime.*'
   workflow_dispatch:
     inputs:
       iterations:
@@ -22,7 +29,7 @@ permissions:
   issues: write
 
 env:
-  OPENVINO_VERSION: "2025.2.0.0"
+  OPENVINO_VERSION: "2025.3.0.0.dev20250801"
 
 jobs:
   benchmark:

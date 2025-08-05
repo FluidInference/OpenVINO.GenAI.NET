@@ -16,7 +16,7 @@ For LLM, an alternative to consider is [Microsoft's C# Foundry Local package](ht
 
 - .NET 8.0 or later
 - Windows x64
-- OpenVINO GenAI 2025.2.0.0 runtime
+- OpenVINO GenAI 2025.3.0.0.dev20250801 runtime
 
 ## Quick Start
 

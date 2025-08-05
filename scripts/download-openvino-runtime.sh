@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION=${1:-"2025.2.0.0"}
+VERSION=${1:-"2025.3.0.0.dev20250801"}
 OUTPUT_PATH=${2:-"build/native"}
 UBUNTU_VERSION=${3:-"24"}
 
@@ -33,7 +33,7 @@ if [ -d "$EXTRACTED_PATH" ]; then
 fi
 
 # Download URL  
-BASE_URL="https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.2/linux/"
+BASE_URL="https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/nightly/${VERSION}/"
 FILE_NAME="openvino_genai_ubuntu${UBUNTU_VERSION}_${VERSION}_x86_64.tar.gz"
 URL="$BASE_URL$FILE_NAME"
 
