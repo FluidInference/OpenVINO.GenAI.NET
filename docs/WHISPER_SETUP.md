@@ -85,16 +85,11 @@ dotnet build samples/WhisperDemo/WhisperDemo.csproj
 Assuming you have OpenVINO GenAI repository cloned alongside this project:
 
 ```bash
-# Set up paths (adjust these to your setup)
-export OPENVINO_GENAI_PATH=../openvino.genai
-export WHISPER_MODEL_PATH=$OPENVINO_GENAI_PATH/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny
-export TEST_AUDIO=$OPENVINO_GENAI_PATH/ov_cache0/test_data/how_are_you_doing_today.wav
-
 # Run with dotnet run from project root
 LD_LIBRARY_PATH=$OPENVINO_GENAI_PATH/build/openvino_genai:$OPENVINO_GENAI_PATH/.venv/lib/python3.12/site-packages/openvino/libs \
 dotnet run --project samples/WhisperDemo -- \
-$WHISPER_MODEL_PATH \
-$TEST_AUDIO
+./Models/whisper-tiny-int4-ov-npu \
+./how_are_you_doing_today.wav
 ```
 
 ### Run from Binary Directory

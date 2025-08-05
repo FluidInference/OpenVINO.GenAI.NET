@@ -18,7 +18,7 @@ public sealed class WhisperPipeline : IDisposable
     /// </summary>
     /// <param name="modelPath">Path to the Whisper model directory</param>
     /// <param name="device">Device to run on (e.g., "CPU", "GPU")</param>
-    public WhisperPipeline(string modelPath, string device = "CPU")
+    public WhisperPipeline(string modelPath, string device = "NPU")
     {
         if (string.IsNullOrEmpty(modelPath))
             throw new ArgumentException("Model path cannot be null or empty", nameof(modelPath));
@@ -47,12 +47,19 @@ public sealed class WhisperPipeline : IDisposable
     public IReadOnlyList<WhisperDecodedResult> Generate(float[] audioData, WhisperGenerationConfig? config = null)
     {
         ThrowIfDisposed();
+
+        // Debug: Log input audio data info
+        System.Diagnostics.Debug.WriteLine($"[WhisperPipeline] Generate called. AudioData: {(audioData == null ? "null" : audioData.Length.ToString())} samples, Config: {(config == null ? "null" : "provided")}");
+
         if (audioData == null)
             throw new ArgumentNullException(nameof(audioData));
         if (audioData.Length == 0)
             throw new ArgumentException("Audio data cannot be empty", nameof(audioData));
 
         var configHandle = config?.Handle ?? IntPtr.Zero;
+
+        // Debug: Log native call parameters
+        Console.WriteLine($"[WhisperPipeline] Invoking native generate. Handle: {_handle.DangerousGetHandle()}, ConfigHandle: {configHandle}");
 
         var status = GenAINativeMethods.ov_genai_whisper_pipeline_generate(
             _handle.DangerousGetHandle(),
@@ -61,10 +68,22 @@ public sealed class WhisperPipeline : IDisposable
             configHandle,
             out var resultsHandle);
 
+        // Debug: Log status after native call
+        Console.WriteLine($"[WhisperPipeline] Native generate returned status: {status}, ResultsHandle: {resultsHandle}");
+
         OpenVINOGenAIException.ThrowIfError(status, "generate transcription");
 
         using var results = new WhisperDecodedResultsSafeHandle(resultsHandle, true);
-        return ExtractResults(results);
+
+        // Debug: Log before extracting results
+        Console.WriteLine("[WhisperPipeline] Extracting results from native handle.");
+
+        var extractedResults = ExtractResults(results);
+
+        // Debug: Log number of results extracted
+        Console.WriteLine($"[WhisperPipeline] Extracted {extractedResults.Count} results.");
+
+        return extractedResults;
     }
 
     /// <summary>

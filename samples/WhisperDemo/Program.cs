@@ -42,13 +42,6 @@ class Program
                 }
             }
 
-            // Warn about INT4 models on CPU
-            if (modelPath.Contains("int4", StringComparison.OrdinalIgnoreCase) && device == "CPU")
-            {
-                Console.WriteLine("WARNING: INT4 quantized models are NPU-specific and may not work on CPU.");
-                Console.WriteLine("Consider using an FP16 model for CPU inference.\n");
-            }
-
             // Create pipeline
             Console.WriteLine("Creating Whisper pipeline...");
             using var pipeline = new WhisperPipeline(modelPath, device);

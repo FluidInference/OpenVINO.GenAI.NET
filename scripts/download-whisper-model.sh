@@ -60,7 +60,7 @@ echo "Creating directory: $FULL_MODEL_PATH"
 mkdir -p "$FULL_MODEL_PATH"
 
 # Base URL for HuggingFace
-BASE_URL="https://huggingface.co/FluidInference/whisper-tiny-int4-ov-npu/resolve/main"
+BASE_URL="https://huggingface.co/OpenVINO/whisper-tiny-int8-ov/resolve/main"
 
 # Files to download
 FILES=(
