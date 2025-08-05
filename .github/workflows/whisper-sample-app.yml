@@ -72,13 +72,7 @@ jobs:
         restore-keys: |
           whisper-model-
 
-    - name: Cache Sample Audio
-      uses: actions/cache@v4
-      with:
-        path: ./samples/audio
-        key: sample-audio-v1
-        restore-keys: |
-          sample-audio-
+    # Audio file is now included in the repository
 
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
@@ -152,40 +146,17 @@ jobs:
       run: |
         ./scripts/download-whisper-model.ps1
 
-    - name: Download Sample Audio
+    - name: Verify Test Audio File
       shell: pwsh
       run: |
-        if (Test-Path ./scripts/download-sample-audio.ps1) {
-          ./scripts/download-sample-audio.ps1
+        $audioPath = "how_are_you_doing_today.wav"
+        if (Test-Path $audioPath) {
+          Write-Host "✓ Test audio file found: $audioPath"
+          $fileInfo = Get-Item $audioPath
+          Write-Host "  Size: $($fileInfo.Length) bytes"
         } else {
-          Write-Host "Creating sample audio directory..."
-          New-Item -ItemType Directory -Path "samples/audio" -Force
-          
-          # Download audio files from Hugging Face FluidInference/audio dataset
-          $audioFiles = @(
-            @{
-              url = "https://huggingface.co/datasets/FluidInference/audio/resolve/main/glm.wav"
-              filename = "glm.wav"
-            },
-            @{
-              url = "https://huggingface.co/datasets/FluidInference/audio/resolve/main/startup.wav"
-              filename = "startup.wav"
-            }
-          )
-          
-          foreach ($audio in $audioFiles) {
-            $audioPath = "samples/audio/$($audio.filename)"
-            Write-Host "Downloading $($audio.filename)..."
-            
-            try {
-              Invoke-WebRequest -Uri $audio.url -OutFile $audioPath -UseBasicParsing
-              Write-Host "✓ Downloaded $($audio.filename) to: $audioPath"
-            } catch {
-              Write-Host "Warning: Failed to download $($audio.filename): $($_.Exception.Message)"
-              # Create a dummy file for testing
-              New-Item -ItemType File -Path $audioPath -Force
-            }
-          }
+          Write-Host "❌ Test audio file not found: $audioPath"
+          exit 1
         }
 
     - name: Build solution
@@ -219,13 +190,13 @@ jobs:
         
         # Get absolute paths
         $modelPath = "$(Get-Location)\Models\whisper-tiny-int4-ov-npu"
-        $audioDir = "$(Get-Location)\samples\audio"
+        $audioFile = "$(Get-Location)\how_are_you_doing_today.wav"
         
         # Set environment variable for model path
         $env:WHISPER_MODEL_PATH = $modelPath
         
         Write-Host "Model Path: $modelPath"
-        Write-Host "Audio Dir: $audioDir"
+        Write-Host "Audio File: $audioFile"
         Write-Host "Checking if model exists..."
         if (Test-Path $modelPath) {
           Write-Host "Model directory found"
@@ -245,68 +216,36 @@ jobs:
         $output += "**Model:** whisper-tiny-int4-ov-npu"
         $output += ""
         
-        # Check if we have audio files
-        $audioFiles = Get-ChildItem -Path $audioDir -Filter "*.wav" -ErrorAction SilentlyContinue
+        # Run WhisperDemo with the test audio file
+        $output += "## Transcription Results"
+        $output += ""
+        $output += "### how_are_you_doing_today.wav"
+        $output += "``````"
         
-        if ($audioFiles) {
-          $output += "## Transcription Results"
-          $output += ""
-          Write-Host "Found $($audioFiles.Count) audio files"
+        Write-Host "Processing: how_are_you_doing_today.wav"
+        
+        try {
+          # Use Start-Process with timeout to prevent hanging
+          $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "`"$modelPath`"", "`"$audioFile`"" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
           
-          foreach ($audio in $audioFiles) {
-            Write-Host "Processing: $($audio.Name)"
-            $output += "### $($audio.Name)"
-            $output += "``````"
-            
-            try {
-              # Use Start-Process with timeout to prevent hanging
-              $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "`"$modelPath`"", "`"$($audio.FullName)`"" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
-              
-              # Wait max 30 seconds per file
-              if (!$process.WaitForExit(30000)) {
-                $process.Kill()
-                $output += "Error: Process timed out after 30 seconds"
-              } else {
-                $stdout = Get-Content "temp_output.txt" -Raw -ErrorAction SilentlyContinue
-                $stderr = Get-Content "temp_error.txt" -Raw -ErrorAction SilentlyContinue
-                if ($stdout) { $output += $stdout }
-                if ($stderr) { $output += "STDERR: $stderr" }
-              }
-              
-              Remove-Item "temp_output.txt", "temp_error.txt" -ErrorAction SilentlyContinue
-            } catch {
-              $output += "Error: $($_.Exception.Message)"
-            }
-            
-            $output += "``````"
-            $output += ""
-          }
-        } else {
-          $output += "## Test Run"
-          $output += "``````"
-          Write-Host "No audio files found, running with generated test audio"
-          
-          # Run with generated test audio and timeout
-          try {
-            $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "`"$modelPath`"" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
-            
-            if (!$process.WaitForExit(30000)) {
-              $process.Kill()
-              $output += "Error: Process timed out after 30 seconds"
-            } else {
-              $stdout = Get-Content "temp_output.txt" -Raw -ErrorAction SilentlyContinue
-              $stderr = Get-Content "temp_error.txt" -Raw -ErrorAction SilentlyContinue
-              if ($stdout) { $output += $stdout }
-              if ($stderr) { $output += "STDERR: $stderr" }
-            }
-            
-            Remove-Item "temp_output.txt", "temp_error.txt" -ErrorAction SilentlyContinue
-          } catch {
-            $output += "Error: $($_.Exception.Message)"
+          # Wait max 30 seconds
+          if (!$process.WaitForExit(30000)) {
+            $process.Kill()
+            $output += "Error: Process timed out after 30 seconds"
+          } else {
+            $stdout = Get-Content "temp_output.txt" -Raw -ErrorAction SilentlyContinue
+            $stderr = Get-Content "temp_error.txt" -Raw -ErrorAction SilentlyContinue
+            if ($stdout) { $output += $stdout }
+            if ($stderr) { $output += "STDERR: $stderr" }
           }
           
-          $output += "``````"
+          Remove-Item "temp_output.txt", "temp_error.txt" -ErrorAction SilentlyContinue
+        } catch {
+          $output += "Error: $($_.Exception.Message)"
         }
+        
+        $output += "``````"
+        $output += ""
         
         # Save and display output
         $output | Out-File -FilePath "whisper-results.md" -Encoding UTF8
