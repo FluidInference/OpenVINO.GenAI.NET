@@ -76,6 +76,16 @@ jobs:
         $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
         "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
         Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+        
+        # Verify the runtime path exists and contains DLLs
+        if (Test-Path $runtimePath) {
+          $dllCount = (Get-ChildItem -Path $runtimePath -Filter *.dll | Measure-Object).Count
+          Write-Host "Found $dllCount DLL files in runtime path"
+          Get-ChildItem -Path $runtimePath -Filter "openvino*.dll" | Select-Object -First 5 | ForEach-Object { Write-Host "  - $_" }
+        } else {
+          Write-Host "ERROR: Runtime path does not exist: $runtimePath" -ForegroundColor Red
+          exit 1
+        }
 
     - name: Download OpenVINO Runtime (Linux)
       if: matrix.os == 'ubuntu-latest'
