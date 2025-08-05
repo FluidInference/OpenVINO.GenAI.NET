@@ -67,10 +67,10 @@ jobs:
     - name: Cache Whisper Model
       uses: actions/cache@v4
       with:
-        path: ./Models/whisper-tiny-int4-ov-npu
-        key: whisper-model-v1
+        path: ./Models/distil-whisper-tiny-fp16-ov
+        key: whisper-model-fp16-distil-v1
         restore-keys: |
-          whisper-model-
+          whisper-model-fp16-distil-
 
     # Audio file is now included in the repository
 
@@ -114,17 +114,30 @@ jobs:
           Get-ChildItem -Path $runtimePath -Recurse | Format-Table Name, Length, LastWriteTime
           
           # Check for specific required DLLs
-          $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll")
+          $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll", "tbb12.dll")
           $missingDlls = @()
           
           foreach ($dll in $requiredDlls) {
             $found = Get-ChildItem -Path $runtimePath -Filter $dll -Recurse -ErrorAction SilentlyContinue
             if ($found) {
               Write-Host "✓ Found required DLL: $dll at $($found[0].FullName)"
+              # Check file size to ensure it's not corrupted
+              if ($found[0].Length -eq 0) {
+                Write-Host "  WARNING: DLL has zero size - may be corrupted!"
+              }
             } else {
               Write-Host "✗ Missing required DLL: $dll"
               $missingDlls += $dll
             }
+          }
+          
+          # Check for CPU extensions
+          $cpuExtensions = Get-ChildItem -Path $runtimePath -Filter "*cpu*.dll" -ErrorAction SilentlyContinue
+          if ($cpuExtensions) {
+            Write-Host "✓ Found CPU extensions: $($cpuExtensions.Count) files"
+            $cpuExtensions | ForEach-Object { Write-Host "  - $($_.Name)" }
+          } else {
+            Write-Host "⚠ No CPU extension DLLs found - INT4 models may not work"
           }
           
           if ($missingDlls.Count -eq 0) {
@@ -144,7 +157,56 @@ jobs:
     - name: Download Whisper Model
       shell: pwsh
       run: |
-        ./scripts/download-whisper-model.ps1
+        # Download FP16 model that works on CPU
+        $modelPath = "Models/distil-whisper-tiny-fp16-ov"
+        Write-Host "Downloading OpenVINO/distil-whisper-tiny-fp16-ov model for CPU..."
+        
+        if (Test-Path $modelPath) {
+          Write-Host "Model already exists at: $modelPath"
+        } else {
+          Write-Host "Creating directory: $modelPath"
+          New-Item -ItemType Directory -Force -Path $modelPath | Out-Null
+          
+          # Download model files from HuggingFace
+          $baseUrl = "https://huggingface.co/OpenVINO/distil-whisper-tiny-fp16-ov/resolve/main"
+          $files = @(
+            "openvino_encoder_model.xml",
+            "openvino_encoder_model.bin",
+            "openvino_decoder_model.xml",
+            "openvino_decoder_model.bin",
+            "openvino_tokenizer.xml",
+            "openvino_tokenizer.bin",
+            "openvino_detokenizer.xml",
+            "openvino_detokenizer.bin",
+            "config.json",
+            "generation_config.json",
+            "preprocessor_config.json",
+            "tokenizer.json",
+            "tokenizer_config.json",
+            "added_tokens.json",
+            "merges.txt",
+            "normalizer.json",
+            "special_tokens_map.json",
+            "vocab.json"
+          )
+          
+          foreach ($file in $files) {
+            $url = "$baseUrl/$file"
+            $targetPath = Join-Path $modelPath $file
+            
+            Write-Host "Downloading $file..."
+            try {
+              Invoke-WebRequest -Uri $url -OutFile $targetPath -UseBasicParsing
+              $size = (Get-Item $targetPath).Length
+              Write-Host "  ✓ Downloaded: $([math]::Round($size/1KB, 2)) KB"
+            } catch {
+              Write-Host "  Warning: Failed to download $file : $_"
+              # Some files might be optional
+            }
+          }
+          
+          Write-Host "Model download completed."
+        }
 
     - name: Verify Test Audio File
       shell: pwsh
@@ -161,6 +223,74 @@ jobs:
 
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release
+
+    - name: Test Model and OpenVINO Info
+      shell: pwsh
+      timeout-minutes: 2
+      run: |
+        Write-Host "OpenVINO and Model Information"
+        Write-Host "==============================="
+        
+        # Check OpenVINO version
+        $runtimePath = "$(Get-Location)\build\native\runtimes\win-x64\native"
+        Write-Host "Runtime Path: $runtimePath"
+        
+        # List OpenVINO DLLs with version info
+        $ovDlls = Get-ChildItem -Path $runtimePath -Filter "openvino*.dll" -ErrorAction SilentlyContinue
+        foreach ($dll in $ovDlls) {
+          Write-Host "DLL: $($dll.Name) - Size: $($dll.Length) bytes"
+        }
+        
+        # Check model structure
+        Write-Host ""
+        Write-Host "Model Structure Check"
+        Write-Host "--------------------"
+        $modelPath = "$(Get-Location)\Models\distil-whisper-tiny-fp16-ov"
+        
+        if (Test-Path $modelPath) {
+          Write-Host "Model directory: $modelPath"
+          
+          # Check XML files for model details
+          $encoderXml = Join-Path $modelPath "openvino_encoder_model.xml"
+          if (Test-Path $encoderXml) {
+            # Check model precision
+            $xmlContent = Get-Content $encoderXml -Raw
+            if ($xmlContent -match "INT4|int4|I4") {
+              Write-Host "Model appears to be INT4 quantized (NPU-specific)"
+            } elseif ($xmlContent -match "FP16|f16|half") {
+              Write-Host "Model appears to be FP16 precision (CPU/GPU compatible)"
+            } else {
+              Write-Host "Model precision: Unknown/FP32"
+            }
+            if ($xmlContent -match "<layer.*type=.*CPU.*>") {
+              Write-Host "Model has CPU-specific layers"
+            }
+          }
+          
+          $requiredFiles = @(
+            "openvino_encoder_model.xml",
+            "openvino_encoder_model.bin",
+            "openvino_decoder_model.xml",
+            "openvino_decoder_model.bin"
+          )
+          
+          foreach ($file in $requiredFiles) {
+            $path = Join-Path $modelPath $file
+            if (Test-Path $path) {
+              $info = Get-Item $path
+              Write-Host "✓ $file : $([math]::Round($info.Length/1MB, 2)) MB"
+            } else {
+              Write-Host "✗ Missing: $file"
+              exit 1
+            }
+          }
+          
+          Write-Host ""
+          Write-Host "Model files check passed."
+        } else {
+          Write-Host "ERROR: Model directory not found: $modelPath"
+          exit 1
+        }
 
     - name: Setup Environment for OpenVINO
       shell: pwsh
@@ -189,7 +319,7 @@ jobs:
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
         
         # Get absolute paths
-        $modelPath = "$(Get-Location)\Models\whisper-tiny-int4-ov-npu"
+        $modelPath = "$(Get-Location)\Models\distil-whisper-tiny-fp16-ov"
         $audioFile = "$(Get-Location)\how_are_you_doing_today.wav"
         
         # Set environment variable for model path
@@ -200,9 +330,10 @@ jobs:
         Write-Host "Checking if model exists..."
         if (Test-Path $modelPath) {
           Write-Host "Model directory found"
-          Get-ChildItem $modelPath | Select-Object Name | Out-String | Write-Host
+          Get-ChildItem $modelPath | Select-Object Name, Length | Format-Table | Out-String | Write-Host
         } else {
-          Write-Host "WARNING: Model directory not found at $modelPath"
+          Write-Host "ERROR: Model directory not found at $modelPath"
+          exit 1
         }
         
         # Navigate to WhisperDemo for binary output
@@ -213,7 +344,7 @@ jobs:
         $output += ""
         $output += "**Generated:** $timestamp"
         $output += "**Platform:** win-x64"
-        $output += "**Model:** whisper-tiny-int4-ov-npu"
+        $output += "**Model:** distil-whisper-tiny-fp16-ov (CPU-compatible)"
         $output += ""
         
         # Run WhisperDemo with the test audio file
