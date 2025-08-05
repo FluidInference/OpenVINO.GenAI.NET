@@ -43,10 +43,12 @@ dotnet run
 
 - `--device=<DEVICE>` - Inference device (CPU, GPU, NPU). Default: CPU
 - `--audio=<PATH>` - Path to audio file to transcribe
+- `--audio-dir=<PATH>` - Path to directory containing audio files
 - `--language=<LANG>` - Source language code (e.g., en, es, fr). Default: en
 - `--translate` - Translate to English instead of transcribing
 - `--timestamps` - Include word-level timestamps in output
 - `--benchmark` - Run performance benchmark
+- `--workflow` - CI/CD friendly output format (no headers, structured output)
 
 ## Model Download
 

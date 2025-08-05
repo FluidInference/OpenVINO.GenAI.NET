@@ -19,16 +19,21 @@ class Program
 
     static async Task Main(string[] args)
     {
-        Console.WriteLine("OpenVINO.NET Whisper Demo");
-        Console.WriteLine("=========================\n");
-
         // Parse command line arguments
         var device = args.FirstOrDefault(a => a.StartsWith("--device="))?.Split('=')[1] ?? "CPU";
         var benchmark = args.Contains("--benchmark");
         var audioFile = args.FirstOrDefault(a => a.StartsWith("--audio="))?.Split('=')[1];
+        var audioDir = args.FirstOrDefault(a => a.StartsWith("--audio-dir="))?.Split('=')[1];
         var timestamps = args.Contains("--timestamps");
         var language = args.FirstOrDefault(a => a.StartsWith("--language="))?.Split('=')[1] ?? "en";
         var task = args.Contains("--translate") ? WhisperTask.Translate : WhisperTask.Transcribe;
+        var workflow = args.Contains("--workflow");
+
+        if (!workflow)
+        {
+            Console.WriteLine("OpenVINO.NET Whisper Demo");
+            Console.WriteLine("=========================\n");
+        }
 
         try
         {
@@ -39,9 +44,18 @@ class Program
             {
                 await RunBenchmark(timestamps);
             }
+            else if (!string.IsNullOrEmpty(audioDir))
+            {
+                await TranscribeDirectory(audioDir, device, language, task, timestamps, workflow);
+            }
             else if (!string.IsNullOrEmpty(audioFile))
             {
                 await TranscribeFile(audioFile, device, language, task, timestamps);
+            }
+            else if (workflow)
+            {
+                // In workflow mode without specific audio, create test audio
+                await RunWorkflowTest(device, language, task, timestamps);
             }
             else
             {
@@ -250,5 +264,182 @@ class Program
         }
 
         Console.WriteLine("\nGoodbye!");
+    }
+
+    static async Task TranscribeDirectory(string directory, string device, string language, WhisperTask task, bool includeTimestamps, bool workflow)
+    {
+        if (!Directory.Exists(directory))
+        {
+            throw new DirectoryNotFoundException($"Audio directory not found: {directory}");
+        }
+
+        var audioFiles = Directory.GetFiles(directory, "*.wav")
+            .OrderBy(f => f)
+            .ToArray();
+
+        if (audioFiles.Length == 0)
+        {
+            Console.WriteLine($"No WAV files found in: {directory}");
+            return;
+        }
+
+        if (!workflow)
+        {
+            Console.WriteLine($"Found {audioFiles.Length} audio files in: {directory}");
+            Console.WriteLine($"Device: {device}");
+            Console.WriteLine($"Language: {language}");
+            Console.WriteLine($"Task: {task}");
+            Console.WriteLine($"Timestamps: {(includeTimestamps ? "Yes" : "No")}");
+            Console.WriteLine();
+        }
+
+        using var pipeline = new WhisperPipeline(ModelPath, device);
+        
+        var config = WhisperGenerationConfig.Default
+            .WithLanguage(language)
+            .WithTask(task)
+            .WithTimestamps(includeTimestamps);
+
+        var totalAudioDuration = 0.0;
+        var totalProcessingTime = 0.0;
+
+        foreach (var audioFile in audioFiles)
+        {
+            var fileName = Path.GetFileName(audioFile);
+            
+            if (!workflow)
+            {
+                Console.WriteLine($"Processing: {fileName}");
+            }
+
+            var sw = Stopwatch.StartNew();
+            var results = await pipeline.TranscribeFileAsync(audioFile, config);
+            sw.Stop();
+
+            totalProcessingTime += sw.Elapsed.TotalSeconds;
+
+            // Estimate audio duration (rough calculation based on file size)
+            var fileInfo = new FileInfo(audioFile);
+            var estimatedDuration = fileInfo.Length / 32000.0; // Assuming 16kHz, 16-bit mono
+            totalAudioDuration += estimatedDuration;
+
+            if (workflow)
+            {
+                // Workflow output format
+                Console.WriteLine($"### {fileName}");
+                foreach (var result in results)
+                {
+                    Console.WriteLine($"Text: {result.Text}");
+                    Console.WriteLine($"Score: {result.Score:F4}");
+                    
+                    if (result.HasChunks && result.Chunks != null)
+                    {
+                        Console.WriteLine("Timestamps:");
+                        foreach (var chunk in result.Chunks)
+                        {
+                            Console.WriteLine($"  {chunk}");
+                        }
+                    }
+                }
+                Console.WriteLine($"Processing time: {sw.Elapsed.TotalSeconds:F2}s");
+                Console.WriteLine();
+            }
+            else
+            {
+                // Interactive output format
+                foreach (var result in results)
+                {
+                    Console.WriteLine($"  Text: {result.Text}");
+                    Console.WriteLine($"  Score: {result.Score:F4}");
+                    
+                    if (result.HasChunks && result.Chunks != null)
+                    {
+                        Console.WriteLine("  Chunks:");
+                        foreach (var chunk in result.Chunks)
+                        {
+                            Console.WriteLine($"    {chunk}");
+                        }
+                    }
+                }
+                Console.WriteLine($"  Time: {sw.Elapsed.TotalSeconds:F2}s");
+                Console.WriteLine();
+            }
+        }
+
+        // Summary
+        if (audioFiles.Length > 1)
+        {
+            var avgSpeed = totalAudioDuration / totalProcessingTime;
+            Console.WriteLine($"## Summary");
+            Console.WriteLine($"Total files: {audioFiles.Length}");
+            Console.WriteLine($"Total audio duration: ~{totalAudioDuration:F1}s");
+            Console.WriteLine($"Total processing time: {totalProcessingTime:F2}s");
+            Console.WriteLine($"Average speed: {avgSpeed:F1}x realtime");
+        }
+    }
+
+    static async Task RunWorkflowTest(string device, string language, WhisperTask task, bool includeTimestamps)
+    {
+        Console.WriteLine("## Workflow Test Mode");
+        Console.WriteLine($"Device: {device}");
+        Console.WriteLine($"Language: {language}");
+        Console.WriteLine($"Task: {task}");
+        Console.WriteLine($"Timestamps: {includeTimestamps}");
+        Console.WriteLine();
+
+        using var pipeline = new WhisperPipeline(ModelPath, device);
+        
+        var config = WhisperGenerationConfig.Default
+            .WithLanguage(language)
+            .WithTask(task)
+            .WithTimestamps(includeTimestamps);
+
+        // Generate test audio
+        var testAudio = GenerateTestAudio(5.0f);
+        Console.WriteLine("### Generated Test Audio (5 seconds)");
+
+        var sw = Stopwatch.StartNew();
+        var results = await pipeline.GenerateAsync(testAudio, config);
+        sw.Stop();
+
+        foreach (var result in results)
+        {
+            Console.WriteLine($"Text: {result.Text}");
+            Console.WriteLine($"Score: {result.Score:F4}");
+            
+            if (result.HasChunks && result.Chunks != null)
+            {
+                Console.WriteLine("Timestamps:");
+                foreach (var chunk in result.Chunks)
+                {
+                    Console.WriteLine($"  {chunk}");
+                }
+            }
+        }
+        
+        Console.WriteLine($"Processing time: {sw.Elapsed.TotalSeconds:F2}s");
+        Console.WriteLine($"Speed: {5.0 / sw.Elapsed.TotalSeconds:F1}x realtime");
+    }
+
+    /// <summary>
+    /// Generates test audio data (sine wave to simulate speech patterns)
+    /// </summary>
+    private static float[] GenerateTestAudio(float durationSeconds)
+    {
+        const int sampleRate = 16000;
+        var sampleCount = (int)(sampleRate * durationSeconds);
+        var audio = new float[sampleCount];
+
+        // Generate a modulated sine wave to simulate speech-like patterns
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float t = i / (float)sampleRate;
+            // Mix of frequencies to simulate speech
+            float carrier = (float)Math.Sin(2 * Math.PI * 440 * t); // 440 Hz carrier
+            float modulator = (float)Math.Sin(2 * Math.PI * 3 * t); // 3 Hz modulation
+            audio[i] = carrier * 0.3f * (1 + 0.5f * modulator);
+        }
+
+        return audio;
     }
 }

@@ -1,0 +1,297 @@
+name: Run Whisper Sample App
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'samples/WhisperDemo/**'
+      - '.github/workflows/whisper-sample-app.yml'
+      - 'scripts/download-whisper-model.*'
+      - 'scripts/download-sample-audio.*'
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: write
+
+env:
+  OPENVINO_VERSION: "2025.3.0.0.dev20250801"
+
+jobs:
+  whisper-demo:
+    name: Whisper Demo - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: windows-latest
+            runtime: win-x64
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Cache Whisper Model
+      uses: actions/cache@v4
+      with:
+        path: ./Models/whisper-tiny-int4-ov-npu
+        key: whisper-model-v1
+        restore-keys: |
+          whisper-model-
+
+    - name: Cache Sample Audio
+      uses: actions/cache@v4
+      with:
+        path: ./samples/audio
+        key: sample-audio-v1
+        restore-keys: |
+          sample-audio-
+
+    - name: Restore dependencies
+      run: dotnet restore OpenVINO.NET.sln
+
+    - name: Download OpenVINO Runtime (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        ./scripts/download-openvino-runtime.ps1 -Version "${{ env.OPENVINO_VERSION }}" -OutputPath "build/native"
+        
+    - name: Set OPENVINO_RUNTIME_PATH for Windows
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+
+    - name: Download OpenVINO Runtime (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        chmod +x scripts/download-openvino-runtime.sh
+        ./scripts/download-openvino-runtime.sh "${{ env.OPENVINO_VERSION }}" "build/native" "24"
+        
+    - name: Set OPENVINO_RUNTIME_PATH for Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
+        echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
+        echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
+
+    - name: Download Whisper Model (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        ./scripts/download-whisper-model.ps1
+
+    - name: Download Whisper Model (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        chmod +x scripts/download-whisper-model.sh
+        ./scripts/download-whisper-model.sh
+
+    - name: Download Sample Audio (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        if (Test-Path ./scripts/download-sample-audio.ps1) {
+          ./scripts/download-sample-audio.ps1
+        } else {
+          Write-Host "Creating sample audio directory..."
+          New-Item -ItemType Directory -Path "samples/audio" -Force
+          
+          # Download a simple test audio file
+          $audioUrl = "https://sample-files.com/download/audio/wav/sample-3s.wav"
+          $audioPath = "samples/audio/sample1.wav"
+          
+          try {
+            Invoke-WebRequest -Uri $audioUrl -OutFile $audioPath -UseBasicParsing
+            Write-Host "Downloaded sample audio to: $audioPath"
+          } catch {
+            Write-Host "Warning: Failed to download sample audio"
+            # Create a dummy file for testing
+            New-Item -ItemType File -Path $audioPath -Force
+          }
+        }
+
+    - name: Download Sample Audio (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        if [ -f ./scripts/download-sample-audio.sh ]; then
+          chmod +x ./scripts/download-sample-audio.sh
+          ./scripts/download-sample-audio.sh
+        else
+          echo "Creating sample audio directory..."
+          mkdir -p samples/audio
+          
+          # Download a simple test audio file
+          AUDIO_URL="https://sample-files.com/download/audio/wav/sample-3s.wav"
+          AUDIO_PATH="samples/audio/sample1.wav"
+          
+          if curl -L -o "$AUDIO_PATH" "$AUDIO_URL"; then
+            echo "Downloaded sample audio to: $AUDIO_PATH"
+          else
+            echo "Warning: Failed to download sample audio"
+            # Create a dummy file for testing
+            touch "$AUDIO_PATH"
+          fi
+        fi
+
+    - name: Build solution
+      run: dotnet build OpenVINO.NET.sln --configuration Release
+
+    - name: Set LD_LIBRARY_PATH for Linux
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        LIBRARY_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
+        echo "LD_LIBRARY_PATH=$LIBRARY_PATH:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+    - name: Run WhisperDemo (Windows)
+      if: matrix.os == 'windows-latest'
+      working-directory: ./samples/WhisperDemo
+      shell: pwsh
+      run: |
+        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        
+        $output = @()
+        $output += "# Whisper Sample App Results - Windows x64"
+        $output += ""
+        $output += "**Generated:** $timestamp"
+        $output += "**Platform:** win-x64"
+        $output += "**Model:** whisper-tiny-int4-ov-npu"
+        $output += ""
+        
+        # Check if we have audio files
+        $audioFiles = Get-ChildItem -Path "../audio" -Filter "*.wav" -ErrorAction SilentlyContinue
+        
+        if ($audioFiles) {
+          $output += "## Transcription Results"
+          $output += ""
+          
+          foreach ($audio in $audioFiles) {
+            $output += "### $($audio.Name)"
+            $output += "``````"
+            
+            try {
+              $result = dotnet run --configuration Release -- --audio "$($audio.FullName)" --device CPU 2>&1
+              $output += $result
+            } catch {
+              $output += "Error: $($_.Exception.Message)"
+            }
+            
+            $output += "``````"
+            $output += ""
+          }
+        } else {
+          $output += "## Test Run"
+          $output += "``````"
+          # Run with generated test audio
+          $result = dotnet run --configuration Release -- --device CPU 2>&1
+          $output += $result
+          $output += "``````"
+        }
+        
+        # Save output
+        $output | Out-File -FilePath "whisper-results.md" -Encoding UTF8
+        Write-Host "Results saved to whisper-results.md"
+
+    - name: Run WhisperDemo (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      working-directory: ./samples/WhisperDemo
+      run: |
+        TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+        
+        {
+          echo "# Whisper Sample App Results - Linux x64"
+          echo ""
+          echo "**Generated:** $TIMESTAMP"
+          echo "**Platform:** linux-x64"
+          echo "**Model:** whisper-tiny-int4-ov-npu"
+          echo ""
+          
+          # Check if we have audio files
+          if ls ../audio/*.wav 2>/dev/null; then
+            echo "## Transcription Results"
+            echo ""
+            
+            for audio in ../audio/*.wav; do
+              echo "### $(basename "$audio")"
+              echo '```'
+              dotnet run --configuration Release -- --audio "$audio" --device CPU 2>&1 || echo "Error running transcription"
+              echo '```'
+              echo ""
+            done
+          else
+            echo "## Test Run"
+            echo '```'
+            # Run with generated test audio
+            dotnet run --configuration Release -- --device CPU 2>&1 || echo "Error running demo"
+            echo '```'
+          fi
+        } > whisper-results.md
+        
+        echo "Results saved to whisper-results.md"
+
+    - name: Upload Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: whisper-results-${{ matrix.runtime }}
+        path: ./samples/WhisperDemo/whisper-results.md
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const resultsPath = './samples/WhisperDemo/whisper-results.md';
+          
+          if (fs.existsSync(resultsPath)) {
+            const results = fs.readFileSync(resultsPath, 'utf8');
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const platform = '${{ matrix.runtime }}';
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(`Whisper Sample App Results - ${platform === 'win-x64' ? 'Windows' : 'Linux'} x64`)
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: results
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: results
+              });
+            }
+          }
