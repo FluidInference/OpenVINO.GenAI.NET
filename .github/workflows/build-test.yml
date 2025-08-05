@@ -55,7 +55,7 @@ jobs:
     - name: Cache Whisper model
       uses: actions/cache@v4
       with:
-        path: Models/whisper-tiny-int4-ov-npu
+        path: Models/whisper-tiny-fp16-ov
         key: whisper-model-v1
         restore-keys: |
           whisper-model-
@@ -115,9 +115,9 @@ jobs:
     - name: Set WHISPER_MODEL_PATH
       run: |
         if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          echo "WHISPER_MODEL_PATH=$(pwd)\Models\whisper-tiny-int4-ov-npu" >> $GITHUB_ENV
+          echo "WHISPER_MODEL_PATH=$(pwd)\Models\whisper-tiny-fp16-ov" >> $GITHUB_ENV
         else
-          echo "WHISPER_MODEL_PATH=$(pwd)/Models/whisper-tiny-int4-ov-npu" >> $GITHUB_ENV
+          echo "WHISPER_MODEL_PATH=$(pwd)/Models/whisper-tiny-fp16-ov" >> $GITHUB_ENV
         fi
       shell: bash
 

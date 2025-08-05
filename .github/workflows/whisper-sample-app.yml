@@ -67,7 +67,7 @@ jobs:
     - name: Cache Whisper Model
       uses: actions/cache@v4
       with:
-        path: ./Models/whisper-tiny-int4-ov-npu
+        path: ./Models/whisper-tiny-fp16-ov
         key: whisper-model-v1
         restore-keys: |
           whisper-model-
@@ -196,7 +196,7 @@ jobs:
         Write-Host ""
         Write-Host "Model Structure Check"
         Write-Host "--------------------"
-        $modelPath = "$(Get-Location)\Models\whisper-tiny-int4-ov-npu"
+        $modelPath = "$(Get-Location)\Models\whisper-tiny-fp16-ov"
         
         if (Test-Path $modelPath) {
           Write-Host "Model directory: $modelPath"
@@ -266,7 +266,7 @@ jobs:
         $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
         
         # Get absolute paths
-        $modelPath = "$(Get-Location)\Models\whisper-tiny-int4-ov-npu"
+        $modelPath = "$(Get-Location)\Models\whisper-tiny-fp16-ov"
         $audioFile = "$(Get-Location)\how_are_you_doing_today.wav"
         
         # Set environment variable for model path
@@ -290,7 +290,7 @@ jobs:
         $output += ""
         $output += "**Generated:** $timestamp"
         $output += "**Platform:** win-x64"
-        $output += "**Model:** whisper-tiny-int4-ov-npu"
+        $output += "**Model:** whisper-tiny-fp16-ov"
         $output += ""
         
         # Run WhisperDemo with the test audio file
