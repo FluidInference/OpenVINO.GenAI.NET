@@ -3,8 +3,24 @@ name: Build and Test
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'samples/**'
+      - '*.sln'
+      - '**/*.csproj'
+      - '.github/workflows/build-test.yml'
+      - 'scripts/download-openvino-runtime.*'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'samples/**'
+      - '*.sln'
+      - '**/*.csproj'
+      - '.github/workflows/build-test.yml'
+      - 'scripts/download-openvino-runtime.*'
   workflow_dispatch:
 
 jobs:
