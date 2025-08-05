@@ -282,13 +282,13 @@ class Program
         {
             Console.WriteLine($"Found {audioFiles.Length} audio files in: {directory}");
             Console.WriteLine($"Device: {device}");
-                Console.WriteLine($"Task: {task}");
+            Console.WriteLine($"Task: {task}");
             Console.WriteLine($"Timestamps: {(includeTimestamps ? "Yes" : "No")}");
             Console.WriteLine();
         }
 
         using var pipeline = new WhisperPipeline(ModelPath, device);
-        
+
         var config = WhisperGenerationConfig.Default
             .WithTask(task)
             .WithTimestamps(includeTimestamps);
@@ -299,7 +299,7 @@ class Program
         foreach (var audioFile in audioFiles)
         {
             var fileName = Path.GetFileName(audioFile);
-            
+
             if (!workflow)
             {
                 Console.WriteLine($"Processing: {fileName}");
@@ -324,7 +324,7 @@ class Program
                 {
                     Console.WriteLine($"Text: {result.Text}");
                     Console.WriteLine($"Score: {result.Score:F4}");
-                    
+
                     if (result.HasChunks && result.Chunks != null)
                     {
                         Console.WriteLine("Timestamps:");
@@ -344,7 +344,7 @@ class Program
                 {
                     Console.WriteLine($"  Text: {result.Text}");
                     Console.WriteLine($"  Score: {result.Score:F4}");
-                    
+
                     if (result.HasChunks && result.Chunks != null)
                     {
                         Console.WriteLine("  Chunks:");
@@ -380,7 +380,7 @@ class Program
         Console.WriteLine();
 
         using var pipeline = new WhisperPipeline(ModelPath, device);
-        
+
         var config = WhisperGenerationConfig.Default
             .WithTask(task)
             .WithTimestamps(includeTimestamps);
@@ -397,7 +397,7 @@ class Program
         {
             Console.WriteLine($"Text: {result.Text}");
             Console.WriteLine($"Score: {result.Score:F4}");
-            
+
             if (result.HasChunks && result.Chunks != null)
             {
                 Console.WriteLine("Timestamps:");
@@ -407,7 +407,7 @@ class Program
                 }
             }
         }
-        
+
         Console.WriteLine($"Processing time: {sw.Elapsed.TotalSeconds:F2}s");
         Console.WriteLine($"Speed: {5.0 / sw.Elapsed.TotalSeconds:F1}x realtime");
     }

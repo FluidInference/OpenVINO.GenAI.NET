@@ -46,7 +46,11 @@
       "Bash(LD_LIBRARY_PATH=/home/brandon/OpenVINO.GenAI.NET/build/native/runtimes/linux-x64/native:. dotnet WhisperDemo.dll --audio=/home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav --device=CPU)",
       "Bash(LD_LIBRARY_PATH=/home/brandon/openvino.genai/build/src/c:/home/brandon/openvino.genai/build/openvino_genai:/home/brandon/openvino.genai/.venv/lib/python3.12/site-packages/openvino/libs dotnet WhisperDemo.dll --audio=/home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav --device=CPU)",
       "Bash(dotnet test:*)",
-      "Bash(OPENVINO_RUNTIME_PATH=\"\" WHISPER_MODEL_PATH=\"/home/brandon/OpenVINO.GenAI.NET/Models/whisper-tiny-int4-ov-npu\" LD_LIBRARY_PATH=runtimes/linux-x64/native:. dotnet OpenVINO.NET.GenAI.Tests.dll --filter \"FullyQualifiedName~WhisperPipeline_BasicTranscription\")"
+      "Bash(OPENVINO_RUNTIME_PATH=\"\" WHISPER_MODEL_PATH=\"/home/brandon/OpenVINO.GenAI.NET/Models/whisper-tiny-int4-ov-npu\" LD_LIBRARY_PATH=runtimes/linux-x64/native:. dotnet OpenVINO.NET.GenAI.Tests.dll --filter \"FullyQualifiedName~WhisperPipeline_BasicTranscription\")",
+      "Bash(gh pr list:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }
