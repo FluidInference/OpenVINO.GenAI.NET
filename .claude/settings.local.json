@@ -56,7 +56,8 @@
       "Bash(WHISPER_MODEL_PATH=/home/brandon/OpenVINO.GenAI.NET/Models/whisper-tiny-int4-ov-npu LD_LIBRARY_PATH=/home/brandon/OpenVINO.GenAI.NET/build/native/runtimes/linux-x64/native dotnet samples/WhisperDemo/bin/Release/net8.0/WhisperDemo.dll --help)",
       "Bash(dotnet:*)",
       "Bash(WHISPER_MODEL_PATH=/home/brandon/OpenVINO.GenAI.NET/Models/whisper-tiny-int4-ov-npu LD_LIBRARY_PATH=/home/brandon/OpenVINO.GenAI.NET/build/native/runtimes/linux-x64/native timeout 2 dotnet samples/WhisperDemo/bin/Release/net8.0/WhisperDemo.dll)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(WHISPER_MODEL_PATH=/home/brandon/OpenVINO.GenAI.NET/Models/whisper-tiny-int4-ov-npu LD_LIBRARY_PATH=/home/brandon/OpenVINO.GenAI.NET/build/native/runtimes/linux-x64/native:. timeout 5 dotnet WhisperDemo.dll)"
     ],
     "deny": []
   }

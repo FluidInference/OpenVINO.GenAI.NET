@@ -39,6 +39,32 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    - name: Install Linux System Dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        echo "Installing Linux system dependencies for OpenVINO..."
+        sudo apt-get update
+        sudo apt-get install -y \
+          ocl-icd-libopencl1 \
+          opencl-headers \
+          clinfo \
+          libtbb12 \
+          libtbb-dev
+        
+        # Verify OpenCL installation
+        echo "Verifying OpenCL installation..."
+        if command -v clinfo >/dev/null 2>&1; then
+          clinfo || echo "Warning: No OpenCL devices found (this is expected in CI)"
+        fi
+        
+        # Check for OpenCL library
+        if [ -f "/usr/lib/x86_64-linux-gnu/libOpenCL.so.1" ]; then
+          echo "✓ OpenCL library found"
+        else
+          echo "⚠ OpenCL library not found at expected location"
+          find /usr -name "libOpenCL.so*" 2>/dev/null | head -5
+        fi
+
     - name: Install Visual C++ Redistributables
       if: matrix.os == 'windows-latest'
       shell: pwsh

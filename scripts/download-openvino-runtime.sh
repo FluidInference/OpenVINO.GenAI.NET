@@ -86,6 +86,22 @@ for so in *.so.*; do
   fi
 done
 
+# 4️⃣  Special handling for TBB - create major version symlinks
+# Handle cases like libtbb.so.12.13 → libtbb.so.12
+for so in libtbb*.so.*; do
+  [[ -f "$so" ]] || continue
+  if [[ $so =~ libtbb(.*)\.so\.([0-9]+)\.([0-9]+) ]]; then
+    suffix="${BASH_REMATCH[1]}"  # Could be empty or something like "malloc"
+    major="${BASH_REMATCH[2]}"
+    base="libtbb${suffix}.so.${major}"
+    
+    if [[ ! -e "$base" ]]; then
+      ln -sf "$so" "$base"
+      echo "Created TBB major version symlink: $base → $so"
+    fi
+  fi
+done
+
 # Also create versioned SONAME links if Intel ever forgets them
 # (e.g., create libopenvino.so.2520 → libopenvino.so.2025.2.0.0)
 for so in *_genai.so *.so; do
