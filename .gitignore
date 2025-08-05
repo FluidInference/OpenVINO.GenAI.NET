@@ -3,7 +3,7 @@
 *.suo
 *.user
 *.sln.docstates
-
+.DS_Store
 # Build Folders
 [Bb]uild/
 [Bb]in/
