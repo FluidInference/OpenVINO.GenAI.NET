@@ -90,12 +90,12 @@ public class WhisperIntegrationTests : IDisposable
         Assert.NotNull(results);
         Assert.NotEmpty(results);
         var firstResult = results[0];
-        
+
         if (firstResult.HasChunks)
         {
             Assert.NotNull(firstResult.Chunks);
             Assert.NotEmpty(firstResult.Chunks);
-            
+
             _output.WriteLine($"Generated {firstResult.Chunks.Count} chunks:");
             foreach (var chunk in firstResult.Chunks)
             {
@@ -180,7 +180,7 @@ public class WhisperIntegrationTests : IDisposable
 
         // Act
         var transcriptionTask = pipeline.GenerateAsync(testAudio, config, cts.Token);
-        
+
         // Cancel after a short delay
         cts.CancelAfter(100);
 
@@ -243,7 +243,7 @@ public class WhisperIntegrationTests : IDisposable
         _output.WriteLine($"Audio duration: {audioDurationSeconds:F2} seconds");
         _output.WriteLine($"Processing time: {processingTime:F2} seconds");
         _output.WriteLine($"Real-time factor: {realTimeFactor:F2}x (lower is better)");
-        _output.WriteLine($"Speed: {1/realTimeFactor:F2}x realtime");
+        _output.WriteLine($"Speed: {1 / realTimeFactor:F2}x realtime");
 
         // Performance assertion - should process faster than 2x real-time on CPU
         Assert.True(realTimeFactor < 2.0, $"Processing too slow: {realTimeFactor:F2}x real-time");

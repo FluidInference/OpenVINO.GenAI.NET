@@ -153,7 +153,7 @@ public sealed class WhisperPipeline : IDisposable
     private IReadOnlyList<WhisperDecodedResult> ExtractResults(WhisperDecodedResultsSafeHandle results)
     {
         var handle = results.DangerousGetHandle();
-        
+
         // Get number of results
         var status = GenAINativeMethods.ov_genai_whisper_decoded_results_get_texts_count(handle, out var count);
         OpenVINOGenAIException.ThrowIfError(status, "get texts count");
@@ -207,7 +207,7 @@ public sealed class WhisperPipeline : IDisposable
     private List<WhisperChunk> ExtractChunks(WhisperDecodedResultsSafeHandle results)
     {
         var handle = results.DangerousGetHandle();
-        
+
         // Get number of chunks
         var status = GenAINativeMethods.ov_genai_whisper_decoded_results_get_chunks_count(handle, out var count);
         OpenVINOGenAIException.ThrowIfError(status, "get chunks count");

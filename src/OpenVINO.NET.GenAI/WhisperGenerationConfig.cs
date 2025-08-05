@@ -86,7 +86,7 @@ public sealed class WhisperGenerationConfig : IDisposable
     {
         ThrowIfDisposed();
         var taskString = task == WhisperTask.Transcribe ? "transcribe" : "translate";
-        
+
         var status = GenAINativeMethods.ov_genai_whisper_generation_config_set_task(_handle.DangerousGetHandle(), taskString);
         OpenVINOGenAIException.ThrowIfError(status, "set task");
         return this;
@@ -100,7 +100,7 @@ public sealed class WhisperGenerationConfig : IDisposable
     public WhisperGenerationConfig WithTimestamps(bool returnTimestamps = true)
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_whisper_generation_config_set_return_timestamps(_handle.DangerousGetHandle(), returnTimestamps);
         OpenVINOGenAIException.ThrowIfError(status, "set return timestamps");
         return this;
@@ -144,7 +144,7 @@ public sealed class WhisperGenerationConfig : IDisposable
     public void Validate()
     {
         ThrowIfDisposed();
-        
+
         var status = GenAINativeMethods.ov_genai_whisper_generation_config_validate(_handle.DangerousGetHandle());
         OpenVINOGenAIException.ThrowIfError(status, "validate whisper generation config");
     }
@@ -177,7 +177,7 @@ public enum WhisperTask
     /// Transcribe audio in the original language
     /// </summary>
     Transcribe,
-    
+
     /// <summary>
     /// Translate audio to English
     /// </summary>

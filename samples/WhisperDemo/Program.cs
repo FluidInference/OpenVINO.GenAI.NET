@@ -8,9 +8,9 @@ class Program
     // Model path - will be downloaded if not present
     private const string ModelPath = "models/whisper-tiny-en";
     private const string ModelUrl = "https://huggingface.co/openai/whisper-tiny.en"; // Example URL
-    
+
     // Sample audio file paths
-    private static readonly string[] SampleAudioFiles = 
+    private static readonly string[] SampleAudioFiles =
     {
         "samples/audio/sample1.wav",
         "samples/audio/sample2.wav",
@@ -86,7 +86,7 @@ class Program
             try
             {
                 Console.WriteLine($"Testing {device}...");
-                
+
                 using var pipeline = new WhisperPipeline(ModelPath, device);
                 var config = WhisperGenerationConfig.Default
                     .WithLanguage("en")
@@ -106,7 +106,7 @@ class Program
                     var result = pipeline.Generate(testAudio, config);
                     sw.Stop();
                     times.Add(sw.Elapsed.TotalMilliseconds);
-                    
+
                     Console.WriteLine($"  Run {i + 1}: {sw.Elapsed.TotalMilliseconds:F2}ms");
                 }
 
@@ -130,7 +130,7 @@ class Program
         {
             Console.WriteLine($"{device,-10} Avg: {avgTime,8:F2}ms  Speed: {speed,6:F2}x realtime");
         }
-        
+
         return Task.CompletedTask;
     }
 
@@ -149,7 +149,7 @@ class Program
         Console.WriteLine();
 
         using var pipeline = new WhisperPipeline(ModelPath, device);
-        
+
         var config = WhisperGenerationConfig.Default
             .WithLanguage(language)
             .WithTask(task)
@@ -165,7 +165,7 @@ class Program
         {
             Console.WriteLine($"Text: {result.Text}");
             Console.WriteLine($"Score: {result.Score:F4}");
-            
+
             if (result.HasChunks && result.Chunks != null)
             {
                 Console.WriteLine("\nTimestamped chunks:");
@@ -192,7 +192,7 @@ class Program
         Console.WriteLine();
 
         using var pipeline = new WhisperPipeline(ModelPath, device);
-        
+
         var config = WhisperGenerationConfig.Default
             .WithLanguage(language)
             .WithTask(task)
@@ -202,7 +202,7 @@ class Program
         {
             Console.Write("> ");
             var input = Console.ReadLine()?.Trim();
-            
+
             if (string.IsNullOrEmpty(input))
                 continue;
 
@@ -231,7 +231,7 @@ class Program
                 foreach (var result in results)
                 {
                     Console.WriteLine(result.Text);
-                    
+
                     if (result.HasChunks && result.Chunks != null)
                     {
                         Console.WriteLine("\nChunks:");

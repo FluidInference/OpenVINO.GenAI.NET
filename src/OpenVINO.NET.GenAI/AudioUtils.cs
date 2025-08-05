@@ -73,7 +73,7 @@ public static class AudioUtils
             throw new ArgumentNullException(nameof(floatData));
 
         var normalized = new float[floatData.Length];
-        
+
         // Find max absolute value
         float maxAbs = 0;
         for (int i = 0; i < floatData.Length; i++)
