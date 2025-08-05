@@ -24,7 +24,7 @@ class Program
         var audioFile = args.FirstOrDefault(a => a.StartsWith("--audio="))?.Split('=')[1];
         var audioDir = args.FirstOrDefault(a => a.StartsWith("--audio-dir="))?.Split('=')[1];
         var timestamps = args.Contains("--timestamps");
-        var language = args.FirstOrDefault(a => a.StartsWith("--language="))?.Split('=')[1] ?? "en";
+        // Language parameter removed - not currently supported in the C API
         var task = args.Contains("--translate") ? WhisperTask.Translate : WhisperTask.Transcribe;
         var workflow = args.Contains("--workflow");
 
@@ -45,20 +45,20 @@ class Program
             }
             else if (!string.IsNullOrEmpty(audioDir))
             {
-                await TranscribeDirectory(audioDir, device, language, task, timestamps, workflow);
+                await TranscribeDirectory(audioDir, device, task, timestamps, workflow);
             }
             else if (!string.IsNullOrEmpty(audioFile))
             {
-                await TranscribeFile(audioFile, device, language, task, timestamps);
+                await TranscribeFile(audioFile, device, task, timestamps);
             }
             else if (workflow)
             {
                 // In workflow mode without specific audio, create test audio
-                await RunWorkflowTest(device, language, task, timestamps);
+                await RunWorkflowTest(device, task, timestamps);
             }
             else
             {
-                await RunInteractiveMode(device, language, task, timestamps);
+                await RunInteractiveMode(device, task, timestamps);
             }
         }
         catch (Exception ex)
@@ -147,7 +147,7 @@ class Program
         return Task.CompletedTask;
     }
 
-    static async Task TranscribeFile(string audioFile, string device, string language, WhisperTask task, bool includeTimestamps)
+    static async Task TranscribeFile(string audioFile, string device, WhisperTask task, bool includeTimestamps)
     {
         if (!File.Exists(audioFile))
         {
@@ -156,7 +156,6 @@ class Program
 
         Console.WriteLine($"Transcribing: {audioFile}");
         Console.WriteLine($"Device: {device}");
-        Console.WriteLine($"Language: {language}");
         Console.WriteLine($"Task: {task}");
         Console.WriteLine($"Timestamps: {(includeTimestamps ? "Yes" : "No")}");
         Console.WriteLine();
@@ -164,7 +163,6 @@ class Program
         using var pipeline = new WhisperPipeline(ModelPath, device);
 
         var config = WhisperGenerationConfig.Default
-            .WithLanguage(language)
             .WithTask(task)
             .WithTimestamps(includeTimestamps);
 
@@ -191,11 +189,10 @@ class Program
         }
     }
 
-    static async Task RunInteractiveMode(string device, string language, WhisperTask task, bool includeTimestamps)
+    static async Task RunInteractiveMode(string device, WhisperTask task, bool includeTimestamps)
     {
         Console.WriteLine("Interactive Whisper Demo");
         Console.WriteLine($"Device: {device}");
-        Console.WriteLine($"Language: {language}");
         Console.WriteLine($"Task: {task}");
         Console.WriteLine($"Timestamps: {(includeTimestamps ? "Yes" : "No")}");
         Console.WriteLine("\nCommands:");
@@ -207,7 +204,6 @@ class Program
         using var pipeline = new WhisperPipeline(ModelPath, device);
 
         var config = WhisperGenerationConfig.Default
-            .WithLanguage(language)
             .WithTask(task)
             .WithTimestamps(includeTimestamps);
 
@@ -265,7 +261,7 @@ class Program
         Console.WriteLine("\nGoodbye!");
     }
 
-    static async Task TranscribeDirectory(string directory, string device, string language, WhisperTask task, bool includeTimestamps, bool workflow)
+    static async Task TranscribeDirectory(string directory, string device, WhisperTask task, bool includeTimestamps, bool workflow)
     {
         if (!Directory.Exists(directory))
         {
@@ -286,8 +282,7 @@ class Program
         {
             Console.WriteLine($"Found {audioFiles.Length} audio files in: {directory}");
             Console.WriteLine($"Device: {device}");
-            Console.WriteLine($"Language: {language}");
-            Console.WriteLine($"Task: {task}");
+                Console.WriteLine($"Task: {task}");
             Console.WriteLine($"Timestamps: {(includeTimestamps ? "Yes" : "No")}");
             Console.WriteLine();
         }
@@ -295,7 +290,6 @@ class Program
         using var pipeline = new WhisperPipeline(ModelPath, device);
         
         var config = WhisperGenerationConfig.Default
-            .WithLanguage(language)
             .WithTask(task)
             .WithTimestamps(includeTimestamps);
 
@@ -377,11 +371,10 @@ class Program
         }
     }
 
-    static async Task RunWorkflowTest(string device, string language, WhisperTask task, bool includeTimestamps)
+    static async Task RunWorkflowTest(string device, WhisperTask task, bool includeTimestamps)
     {
         Console.WriteLine("## Workflow Test Mode");
         Console.WriteLine($"Device: {device}");
-        Console.WriteLine($"Language: {language}");
         Console.WriteLine($"Task: {task}");
         Console.WriteLine($"Timestamps: {includeTimestamps}");
         Console.WriteLine();
@@ -389,7 +382,6 @@ class Program
         using var pipeline = new WhisperPipeline(ModelPath, device);
         
         var config = WhisperGenerationConfig.Default
-            .WithLanguage(language)
             .WithTask(task)
             .WithTimestamps(includeTimestamps);
 

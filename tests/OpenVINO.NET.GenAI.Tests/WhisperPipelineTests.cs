@@ -24,27 +24,14 @@ public class WhisperPipelineTests
     {
         // Act
         using var config = WhisperGenerationConfig.Default
-            .WithLanguage("en")
             .WithTask(WhisperTask.Transcribe)
-            .WithTimestamps(true)
-            .WithInitialPrompt("This is a test")
-            .WithHotwords("test, example");
+            .WithTimestamps(true);
 
         // Assert
         Assert.NotNull(config);
     }
 
-    [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    public void WhisperGenerationConfig_WithLanguage_ValidatesInput(string language)
-    {
-        // Arrange
-        using var config = new WhisperGenerationConfig();
-
-        // Act & Assert
-        Assert.Throws<ArgumentException>(() => config.WithLanguage(language));
-    }
+    // Language configuration tests removed - not currently supported in C API
 
     [Fact]
     public void WhisperGenerationConfig_WithTask_AcceptsBothOptions()
