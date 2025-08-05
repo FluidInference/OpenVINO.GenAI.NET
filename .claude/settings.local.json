@@ -17,7 +17,8 @@
       "Bash(dos2unix:*)",
       "Bash(perl:*)",
       "Bash(find:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

@@ -51,9 +51,8 @@ mkdir -p "$FULL_OUTPUT_PATH"
 
 # Define sample audio files to download
 declare -a AUDIO_FILES=(
-    "sample1.wav|https://github.com/voxserv/audio_quality_testing_samples/raw/master/original/test01_20s.wav|20-second test audio from VoxServ"
-    "sample2.wav|https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0010_8k.wav|8kHz American English speech sample"
-    "sample3.wav|https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0030_8k.wav|Another 8kHz American English speech sample"
+    "glm.wav|https://huggingface.co/datasets/FluidInference/audio/resolve/main/glm.wav|GLM audio sample from FluidInference"
+    "startup.wav|https://huggingface.co/datasets/FluidInference/audio/resolve/main/startup.wav|Startup audio sample from FluidInference"
 )
 
 SUCCESS_COUNT=0

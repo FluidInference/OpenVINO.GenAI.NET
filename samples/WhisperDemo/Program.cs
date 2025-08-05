@@ -12,9 +12,8 @@ class Program
     // Sample audio file paths
     private static readonly string[] SampleAudioFiles =
     {
-        "samples/audio/sample1.wav",
-        "samples/audio/sample2.wav",
-        "samples/audio/sample3.wav"
+        "samples/audio/glm.wav",
+        "samples/audio/startup.wav"
     };
 
     static async Task Main(string[] args)

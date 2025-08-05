@@ -37,19 +37,14 @@ New-Item -ItemType Directory -Force -Path $fullOutputPath | Out-Null
 # Define sample audio files to download
 $audioFiles = @(
     @{
-        Name = "sample1.wav"
-        Url = "https://github.com/voxserv/audio_quality_testing_samples/raw/master/original/test01_20s.wav"
-        Description = "20-second test audio from VoxServ"
+        Name = "glm.wav"
+        Url = "https://huggingface.co/datasets/FluidInference/audio/resolve/main/glm.wav"
+        Description = "GLM audio sample from FluidInference"
     },
     @{
-        Name = "sample2.wav"
-        Url = "https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0010_8k.wav"
-        Description = "8kHz American English speech sample"
-    },
-    @{
-        Name = "sample3.wav"
-        Url = "https://www.voiptroubleshooter.com/open_speech/american/OSR_us_000_0030_8k.wav"
-        Description = "Another 8kHz American English speech sample"
+        Name = "startup.wav"
+        Url = "https://huggingface.co/datasets/FluidInference/audio/resolve/main/startup.wav"
+        Description = "Startup audio sample from FluidInference"
     }
 )
 
