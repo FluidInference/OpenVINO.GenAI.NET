@@ -61,7 +61,7 @@ jobs:
           whisper-model-
 
     - name: Restore dependencies
-      run: dotnet restore OpenVINO.NET.sln
+      run: dotnet restore Fluid.OpenVINO.sln
 
     - name: Download OpenVINO Runtime (Windows)
       if: matrix.os == 'windows-latest'
@@ -122,7 +122,7 @@ jobs:
       shell: bash
 
     - name: Build solution
-      run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore
+      run: dotnet build Fluid.OpenVINO.sln --configuration Release --no-restore
 
     - name: Set LD_LIBRARY_PATH for Linux
       if: matrix.os == 'ubuntu-latest'

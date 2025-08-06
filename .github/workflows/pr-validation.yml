@@ -83,13 +83,13 @@ jobs:
           }
 
       - name: Restore dependencies
-        run: dotnet restore OpenVINO.NET.sln
+        run: dotnet restore Fluid.OpenVINO.sln
 
       - name: Build solution
         shell: pwsh
         run: |
           Write-Host "Building with OPENVINO_RUNTIME_PATH: $env:OPENVINO_RUNTIME_PATH"
-          dotnet build OpenVINO.NET.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
+          dotnet build Fluid.OpenVINO.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
         env:
           CI: true
 
@@ -169,11 +169,11 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Restore dependencies
-        run: dotnet restore OpenVINO.NET.sln
+        run: dotnet restore Fluid.OpenVINO.sln
 
       - name: Check formatting
-        run: dotnet format OpenVINO.NET.sln --verify-no-changes --verbosity diagnostic
+        run: dotnet format Fluid.OpenVINO.sln --verify-no-changes --verbosity diagnostic
 
       - name: Run code analysis
         run: |
-          dotnet build OpenVINO.NET.sln --configuration Release /p:EnableNETAnalyzers=true /p:AnalysisMode=AllEnabledByDefault
+          dotnet build Fluid.OpenVINO.sln --configuration Release /p:EnableNETAnalyzers=true /p:AnalysisMode=AllEnabledByDefault
