@@ -75,7 +75,7 @@ jobs:
     # Audio file is now included in the repository
 
     - name: Restore dependencies
-      run: dotnet restore OpenVINO.NET.sln
+      run: dotnet restore Fluid.OpenVINO.sln
 
     - name: Cache OpenVINO Runtime
       id: cache-openvino-windows
@@ -173,7 +173,7 @@ jobs:
         }
 
     - name: Build solution
-      run: dotnet build OpenVINO.NET.sln --configuration Release
+      run: dotnet build Fluid.OpenVINO.sln --configuration Release
 
     - name: Test Model and OpenVINO Info
       shell: pwsh

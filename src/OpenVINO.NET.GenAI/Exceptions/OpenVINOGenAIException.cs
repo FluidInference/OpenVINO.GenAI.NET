@@ -1,6 +1,6 @@
-using OpenVINO.NET.GenAI.Native;
+using Fluid.OpenVINO.GenAI.Native;
 
-namespace OpenVINO.NET.GenAI.Exceptions;
+namespace Fluid.OpenVINO.GenAI.Exceptions;
 
 /// <summary>
 /// Exception thrown by OpenVINO GenAI operations

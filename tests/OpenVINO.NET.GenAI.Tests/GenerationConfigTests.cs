@@ -1,7 +1,7 @@
-using OpenVINO.NET.GenAI;
+using Fluid.OpenVINO.GenAI;
 using Xunit;
 
-namespace OpenVINO.NET.GenAI.Tests;
+namespace Fluid.OpenVINO.GenAI.Tests;
 
 public class GenerationConfigTests
 {

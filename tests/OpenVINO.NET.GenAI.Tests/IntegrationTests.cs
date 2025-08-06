@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using OpenVINO.NET.GenAI;
+using Fluid.OpenVINO.GenAI;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace OpenVINO.NET.GenAI.Tests;
+namespace Fluid.OpenVINO.GenAI.Tests;
 
 /// <summary>
 /// Integration tests that perform actual model inference.

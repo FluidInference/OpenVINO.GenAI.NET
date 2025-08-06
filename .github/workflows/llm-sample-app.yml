@@ -86,7 +86,7 @@ jobs:
           model-${{ inputs.model_name || 'FluidInference/qwen3-0.6b-int4-ov-npu' }}-
 
     - name: Restore dependencies
-      run: dotnet restore OpenVINO.NET.sln
+      run: dotnet restore Fluid.OpenVINO.sln
 
     - name: Cache OpenVINO Runtime
       id: cache-openvino-windows
@@ -153,7 +153,7 @@ jobs:
         }
 
     - name: Build solution
-      run: dotnet build OpenVINO.NET.sln --configuration Release
+      run: dotnet build Fluid.OpenVINO.sln --configuration Release
 
     - name: Download Benchmark Model
       working-directory: ./samples/QuickDemo

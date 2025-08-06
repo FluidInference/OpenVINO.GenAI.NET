@@ -1,8 +1,8 @@
-using OpenVINO.NET.GenAI;
-using OpenVINO.NET.GenAI.Exceptions;
+using Fluid.OpenVINO.GenAI;
+using Fluid.OpenVINO.GenAI.Exceptions;
 using Xunit;
 
-namespace OpenVINO.NET.GenAI.Tests;
+namespace Fluid.OpenVINO.GenAI.Tests;
 
 /// <summary>
 /// Unit tests for WhisperPipeline and related classes

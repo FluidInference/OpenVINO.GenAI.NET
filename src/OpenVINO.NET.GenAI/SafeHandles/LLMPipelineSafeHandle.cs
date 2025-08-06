@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using OpenVINO.NET.GenAI.Native;
+using Fluid.OpenVINO.GenAI.Native;
 
-namespace OpenVINO.NET.GenAI.SafeHandles;
+namespace Fluid.OpenVINO.GenAI.SafeHandles;
 
 /// <summary>
 /// Safe handle for LLM Pipeline native resources

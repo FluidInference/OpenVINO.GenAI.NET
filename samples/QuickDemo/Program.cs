@@ -2,7 +2,7 @@ using System.CommandLine;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using OpenVINO.NET.GenAI;
+using Fluid.OpenVINO.GenAI;
 
 namespace QuickDemo;
 
@@ -88,7 +88,7 @@ class Program
                 Console.WriteLine("=== OpenVINO GenAI Diagnostic Information ===");
                 try
                 {
-                    var diagnosticInfo = OpenVINO.NET.GenAI.DiagnosticInfo.GetNativeLibraryDiagnostics();
+                    var diagnosticInfo = Fluid.OpenVINO.GenAI.DiagnosticInfo.GetNativeLibraryDiagnostics();
                     Console.WriteLine(diagnosticInfo);
                 }
                 catch (Exception diagnosticEx)

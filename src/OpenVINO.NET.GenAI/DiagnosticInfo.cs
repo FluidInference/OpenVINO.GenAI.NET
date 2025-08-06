@@ -1,6 +1,6 @@
-using OpenVINO.NET.GenAI.Native;
+using Fluid.OpenVINO.GenAI.Native;
 
-namespace OpenVINO.NET.GenAI;
+namespace Fluid.OpenVINO.GenAI;
 
 /// <summary>
 /// Provides diagnostic information about OpenVINO GenAI library loading
