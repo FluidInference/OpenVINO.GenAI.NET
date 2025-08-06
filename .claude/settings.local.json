@@ -61,7 +61,9 @@
       "Bash(WHISPER_MODEL_PATH=/home/brandon/OpenVINO.GenAI.NET/Models/whisper-tiny-fp16-ov LD_LIBRARY_PATH=/home/brandon/OpenVINO.GenAI.NET/build/native/runtimes/linux-x64/native:. timeout 5 dotnet WhisperDemo.dll /home/brandon/OpenVINO.GenAI.NET/Models/whisper-tiny-fp16-ov /home/brandon/OpenVINO.GenAI.NET/samples/audio/startup.wav)",
       "Bash(WHISPER_MODEL_PATH=/home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny LD_LIBRARY_PATH=/home/brandon/openvino.genai/build/openvino_genai:/home/brandon/openvino.genai/.venv/lib/python3.12/site-packages/openvino/libs timeout 5 dotnet WhisperDemo.dll /home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny /home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav)",
       "Bash(WHISPER_MODEL_PATH=/home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny LD_LIBRARY_PATH=/home/brandon/openvino.genai/build/openvino_genai:/home/brandon/openvino.genai/.venv/lib/python3.12/site-packages/openvino/libs dotnet run --project samples/WhisperDemo -- /home/brandon/openvino.genai/ov_cache0/test_models/WhisperTiny/openai/whisper-tiny /home/brandon/openvino.genai/ov_cache0/test_data/how_are_you_doing_today.wav)",
-      "Bash(Remove-Item -Path \"samples\\WhisperDemo\\bin\\Debug\\net8.0\\runtimes\\win-x64\\native\\*.dll\" -Force)"
+      "Bash(Remove-Item -Path \"samples\\WhisperDemo\\bin\\Debug\\net8.0\\runtimes\\win-x64\\native\\*.dll\" -Force)",
+      "Bash(C:UsersbrandDocumentsIntelOpenVINOopenvino_c_samples_buildintel64Releasewhisper_speech_recognition_c.exe \"C:\\Users\\brand\\code\\OpenVINO.GenAI.NET\\Models\\whisper-tiny-int4-ov-npu\" \"C:\\Users\\brand\\code\\OpenVINO.GenAI.NET\\how_are_you_doing_today.wav\" NPU)",
+      "Bash(.whisper_speech_recognition_c.exe:*)"
     ],
     "deny": []
   }

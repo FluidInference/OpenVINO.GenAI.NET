@@ -15,7 +15,7 @@ class Program
 
         string audioFile = args.Length > 1 ? args[1] : "how_are_you_doing_today.wav";
 
-        string device = "CPU";
+        string device = args.Length > 2 ? args[2] : "CPU";
 
         try
         {
