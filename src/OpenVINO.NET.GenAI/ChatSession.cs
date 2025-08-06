@@ -1,4 +1,4 @@
-namespace OpenVINO.NET.GenAI;
+namespace Fluid.OpenVINO.GenAI;
 
 /// <summary>
 /// Represents a chat session with automatic resource management

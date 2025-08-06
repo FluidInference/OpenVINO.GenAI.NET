@@ -1,8 +1,8 @@
-using OpenVINO.NET.GenAI.Exceptions;
-using OpenVINO.NET.GenAI.Native;
-using OpenVINO.NET.GenAI.SafeHandles;
+using Fluid.OpenVINO.GenAI.Exceptions;
+using Fluid.OpenVINO.GenAI.Native;
+using Fluid.OpenVINO.GenAI.SafeHandles;
 
-namespace OpenVINO.NET.GenAI;
+namespace Fluid.OpenVINO.GenAI;
 
 /// <summary>
 /// Configuration for text generation parameters

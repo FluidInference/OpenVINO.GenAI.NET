@@ -1,8 +1,8 @@
-using OpenVINO.NET.GenAI.Exceptions;
-using OpenVINO.NET.GenAI.Native;
+using Fluid.OpenVINO.GenAI.Exceptions;
+using Fluid.OpenVINO.GenAI.Native;
 using Xunit;
 
-namespace OpenVINO.NET.GenAI.Tests;
+namespace Fluid.OpenVINO.GenAI.Tests;
 
 public class ExceptionTests
 {

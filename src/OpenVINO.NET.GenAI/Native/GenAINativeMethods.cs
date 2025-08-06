@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace OpenVINO.NET.GenAI.Native;
+namespace Fluid.OpenVINO.GenAI.Native;
 
 /// <summary>
 /// P/Invoke declarations for OpenVINO GenAI C API

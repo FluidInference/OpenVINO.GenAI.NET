@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace OpenVINO.NET.GenAI.Native;
+namespace Fluid.OpenVINO.GenAI.Native;
 
 /// <summary>
 /// OpenVINO status codes enumeration

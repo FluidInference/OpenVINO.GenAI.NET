@@ -1,4 +1,4 @@
-using OpenVINO.NET.GenAI;
+using Fluid.OpenVINO.GenAI;
 
 namespace StreamingChat.Sample;
 

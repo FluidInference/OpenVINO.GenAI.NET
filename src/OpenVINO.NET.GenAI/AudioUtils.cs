@@ -1,4 +1,4 @@
-namespace OpenVINO.NET.GenAI;
+namespace Fluid.OpenVINO.GenAI;
 
 /// <summary>
 /// Utility class for audio processing
