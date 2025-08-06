@@ -1,13 +1,17 @@
 <Project>
   
   <PropertyGroup>
-    <!-- Get the solution directory by going up from this file's directory -->
-    <SolutionDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../..'))</SolutionDir>
-    
     <!-- First check if OPENVINO_RUNTIME_PATH environment variable is set -->
     <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND '$(OPENVINO_RUNTIME_PATH)' != ''">$(OPENVINO_RUNTIME_PATH)</OpenVINOGenAIRuntimePath>
     
-    <!-- Try multiple potential runtime paths to handle different project structures -->
+    <!-- For NuGet package installations: look for libraries in the package's runtimes folder -->
+    <!-- When installed via NuGet, this targets file is in packages/Fluid.OpenVINO.GenAI/build/ -->
+    <!-- The native libraries are in packages/Fluid.OpenVINO.GenAI/runtimes/[rid]/native/ -->
+    <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND $([MSBuild]::IsOSPlatform('Windows')) AND Exists('$(MSBuildThisFileDirectory)..\runtimes\win-x64\native')">$(MSBuildThisFileDirectory)..\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
+    <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND $([MSBuild]::IsOSPlatform('Linux')) AND Exists('$(MSBuildThisFileDirectory)../runtimes/linux-x64/native')">$(MSBuildThisFileDirectory)../runtimes/linux-x64/native</OpenVINOGenAIRuntimePath>
+    
+    <!-- For local development: look in the solution's build directory -->
+    <SolutionDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../..'))</SolutionDir>
     <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND $([MSBuild]::IsOSPlatform('Windows')) AND Exists('$(SolutionDir)\build\native\runtimes\win-x64\native')">$(SolutionDir)\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
     <OpenVINOGenAIRuntimePath Condition="'$(OpenVINOGenAIRuntimePath)' == '' AND $([MSBuild]::IsOSPlatform('Windows')) AND Exists('$(MSBuildThisFileDirectory)..\..\build\native\runtimes\win-x64\native')">$(MSBuildThisFileDirectory)..\..\build\native\runtimes\win-x64\native</OpenVINOGenAIRuntimePath>
     
@@ -61,7 +65,7 @@
              Condition="'$(OPENVINO_RUNTIME_PATH)' != ''" />
 
     <!-- Provide helpful error message with setup instructions -->
-    <Warning Text="OpenVINO GenAI: Native libraries not found. Please follow setup instructions:&#xA;1. Download OpenVINO GenAI runtime from https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/&#xA;2. Extract to $(SolutionDir)/build/native/runtimes/[win-x64|linux-x64]/native/&#xA;3. Or set OPENVINO_RUNTIME_PATH environment variable to the runtime directory" 
+    <Warning Text="OpenVINO GenAI: Native libraries not found at $(OpenVINOGenAIRuntimePath). Troubleshooting:&#xA;1. If using NuGet package: Ensure package restored correctly and check $(MSBuildThisFileDirectory)..\runtimes\[win-x64|linux-x64]\native\&#xA;2. For local development: Download OpenVINO GenAI runtime from https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/&#xA;   Extract to $(SolutionDir)/build/native/runtimes/[win-x64|linux-x64]/native/&#xA;3. For custom installations: Set OPENVINO_RUNTIME_PATH environment variable to your runtime directory" 
              Condition="'@(OpenVINOGenAINativeLibraries)' == '' AND '$(SuppressOpenVINOWarnings)' != 'true'" />
   </Target>
 

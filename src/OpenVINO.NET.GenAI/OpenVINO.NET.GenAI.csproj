@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- Multi-target .NET 6.0 (LTS), .NET 7.0, and .NET 8.0 (LTS) -->
+    <TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -15,28 +16,42 @@
     <RepositoryUrl>https://github.com/FluidInference/OpenVINO.GenAI.NET</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>openvino;ai;inference;llm;genai;machine-learning;deep-learning;neural-networks;text-generation</PackageTags>
+    <PackageTags>openvino;ai;inference;llm;genai;machine-learning;deep-learning;neural-networks;text-generation;whisper;speech-to-text</PackageTags>
     <AssemblyVersion>2025.3.0.0</AssemblyVersion>
     <FileVersion>2025.3.0.0</FileVersion>
-    <Version>2025.3.0.0-dev20250801</Version>
+    <Version>2025.3.0.1</Version>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
     <PackageReleaseNotes>
-      Fluid.OpenVINO.GenAI 2025.3.0.0-dev20250801
+      Fluid.OpenVINO.GenAI 2025.3.0.1
       
       Community-maintained C# wrapper for OpenVINO GenAI.
       
+      IMPORTANT FIX:
+      - Fixed NuGet package native library bundling and MSBuild targets
+      - Native libraries now properly deploy on both Windows and Linux
+      - Added multi-targeting for .NET 6.0, 7.0, and 8.0
+      
       Requirements:
-      - .NET 8.0 or later
+      - .NET 6.0, 7.0, or 8.0
       - Windows x64 or Linux x64
-      - OpenVINO GenAI 2025.3.0.0.dev20250801 runtime
+      - OpenVINO GenAI 2025.3.0.0.dev20250801 runtime (included)
       
       Features:
-      - Async/await and IAsyncEnumerable streaming
+      - LLM Pipeline with streaming support (IAsyncEnumerable)
+      - Whisper Pipeline for speech-to-text
       - Fluent configuration API
-      - Automatic native library management
+      - Automatic native library management via MSBuild targets
       - SafeHandle resource management
+      
+      Changes in 2025.3.0.1:
+      - Fixed MSBuild targets to correctly resolve native libraries from NuGet package
+      - Added support for .NET 6.0 and 7.0 (previously only .NET 8.0)
+      - Improved error messages for missing native libraries
+      - Added comprehensive troubleshooting documentation
+      - All 27 OpenVINO native libraries now properly included for Windows
+      - Linux native libraries included for Ubuntu 24.04
     </PackageReleaseNotes>
   </PropertyGroup>
 
@@ -60,8 +75,10 @@
     <Content Include="..\..\build\native\runtimes\win-x64\native\*.dll">
       <PackagePath>runtimes\win-x64\native\%(Filename)%(Extension)</PackagePath>
       <Pack>true</Pack>
+      <PackageCopyToOutput>false</PackageCopyToOutput>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Link>runtimes\win-x64\native\%(Filename)%(Extension)</Link>
+      <Visible>false</Visible>
     </Content>
   </ItemGroup>
   
@@ -70,8 +87,10 @@
     <Content Include="..\..\build\native\runtimes\linux-x64\native\*.so*">
       <PackagePath>runtimes/linux-x64/native/%(Filename)%(Extension)</PackagePath>
       <Pack>true</Pack>
+      <PackageCopyToOutput>false</PackageCopyToOutput>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Link>runtimes/linux-x64/native/%(Filename)%(Extension)</Link>
+      <Visible>false</Visible>
     </Content>
   </ItemGroup>
 

@@ -152,6 +152,8 @@ dotnet run --project samples/QuickDemo -- --benchmark
 
 ## Troubleshooting
 
+For detailed NuGet package troubleshooting, see [NuGet Troubleshooting Guide](docs/NUGET_TROUBLESHOOTING.md).
+
 ### Common Issues
 
 #### 1. "OpenVINO runtime not found"
