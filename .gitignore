@@ -34,3 +34,8 @@ TestResults/
 *.coverage
 
 .claude/*txt
+
+# Audio samples
+samples/audio/*.wav
+samples/audio/*.mp3
+samples/audio/*.ogg

@@ -13,7 +13,7 @@ on:
       - "scripts/download-openvino-runtime.*"
 
 env:
-  OPENVINO_VERSION: "2025.3.0.0.dev20250801"
+  OPENVINO_VERSION: "2025.3.0.0.dev20250805"
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
@@ -44,13 +44,25 @@ jobs:
         id: cache-openvino
         uses: actions/cache@v4
         with:
-          path: build/native/openvino_genai_windows_${{ env.OPENVINO_VERSION }}_x86_64
-          key: openvino-runtime-${{ env.OPENVINO_VERSION }}
+          path: build/native/runtimes/win-x64/native
+          key: openvino-runtime-${{ env.OPENVINO_VERSION }}-v2
 
-      - name: Download OpenVINO Runtime
-        if: steps.cache-openvino.outputs.cache-hit != 'true'
+      - name: Download and Setup OpenVINO Runtime
         shell: pwsh
         run: |
+          $targetPath = "build/native/runtimes/win-x64/native"
+          
+          # Check if cache was restored and has DLLs
+          if (Test-Path $targetPath) {
+            $dllCount = (Get-ChildItem -Path $targetPath -Filter *.dll -ErrorAction SilentlyContinue | Measure-Object).Count
+            if ($dllCount -gt 0) {
+              Write-Host "Using cached OpenVINO runtime: $dllCount DLLs found" -ForegroundColor Green
+              exit 0
+            }
+          }
+          
+          # Download if not cached or invalid cache
+          Write-Host "Downloading OpenVINO runtime..." -ForegroundColor Yellow
           ./scripts/download-openvino-runtime.ps1 -Version "$env:OPENVINO_VERSION" -OutputPath "build/native"
 
       - name: Set OPENVINO_RUNTIME_PATH
@@ -59,17 +71,49 @@ jobs:
           $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
           "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+          
+          # Verify the runtime path exists and contains DLLs
+          if (Test-Path $runtimePath) {
+            $dllCount = (Get-ChildItem -Path $runtimePath -Filter *.dll | Measure-Object).Count
+            Write-Host "Found $dllCount DLL files in runtime path"
+            Get-ChildItem -Path $runtimePath -Filter "openvino*.dll" | ForEach-Object { Write-Host "  - $_" }
+          } else {
+            Write-Host "ERROR: Runtime path does not exist: $runtimePath" -ForegroundColor Red
+            exit 1
+          }
 
       - name: Restore dependencies
         run: dotnet restore OpenVINO.NET.sln
 
       - name: Build solution
-        run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
+        shell: pwsh
+        run: |
+          Write-Host "Building with OPENVINO_RUNTIME_PATH: $env:OPENVINO_RUNTIME_PATH"
+          dotnet build OpenVINO.NET.sln --configuration Release --no-restore /p:TreatWarningsAsErrors=true
         env:
           CI: true
 
       - name: Run unit tests
+        shell: pwsh
         run: |
+          Write-Host "Running tests with OPENVINO_RUNTIME_PATH: $env:OPENVINO_RUNTIME_PATH"
+          
+          # Check if DLLs were copied to test output directory
+          $testOutputPath = "tests/OpenVINO.NET.GenAI.Tests/bin/Release/net8.0"
+          if (Test-Path $testOutputPath) {
+            $dllCount = (Get-ChildItem -Path $testOutputPath -Filter "*.dll" | Measure-Object).Count
+            Write-Host "Test output directory contains $dllCount DLL files"
+            
+            # Check specifically for OpenVINO DLLs
+            $openvinoDlls = Get-ChildItem -Path $testOutputPath -Filter "openvino*.dll" -ErrorAction SilentlyContinue
+            if ($openvinoDlls) {
+              Write-Host "Found OpenVINO DLLs in test output:"
+              $openvinoDlls | ForEach-Object { Write-Host "  - $_" }
+            } else {
+              Write-Host "WARNING: No OpenVINO DLLs found in test output directory" -ForegroundColor Yellow
+            }
+          }
+          
           dotnet test tests/OpenVINO.NET.GenAI.Tests/OpenVINO.NET.GenAI.Tests.csproj `
             --configuration Release `
             --no-build `

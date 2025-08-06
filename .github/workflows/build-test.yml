@@ -52,6 +52,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-nuget-
 
+    - name: Cache Whisper model
+      uses: actions/cache@v4
+      with:
+        path: Models/whisper-tiny-fp16-ov
+        key: whisper-model-v1
+        restore-keys: |
+          whisper-model-
+
     - name: Restore dependencies
       run: dotnet restore OpenVINO.NET.sln
 
@@ -59,7 +67,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: pwsh
       run: |
-        ./scripts/download-openvino-runtime.ps1 -Version "2025.3.0.0.dev20250801" -OutputPath "build/native"
+        ./scripts/download-openvino-runtime.ps1 -Version "2025.3.0.0.dev20250805" -OutputPath "build/native"
         
     - name: Set OPENVINO_RUNTIME_PATH for Windows
       if: matrix.os == 'windows-latest'
@@ -68,12 +76,22 @@ jobs:
         $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
         "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
         Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+        
+        # Verify the runtime path exists and contains DLLs
+        if (Test-Path $runtimePath) {
+          $dllCount = (Get-ChildItem -Path $runtimePath -Filter *.dll | Measure-Object).Count
+          Write-Host "Found $dllCount DLL files in runtime path"
+          Get-ChildItem -Path $runtimePath -Filter "openvino*.dll" | Select-Object -First 5 | ForEach-Object { Write-Host "  - $_" }
+        } else {
+          Write-Host "ERROR: Runtime path does not exist: $runtimePath" -ForegroundColor Red
+          exit 1
+        }
 
     - name: Download OpenVINO Runtime (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
         chmod +x scripts/download-openvino-runtime.sh
-        ./scripts/download-openvino-runtime.sh "2025.3.0.0.dev20250801" "build/native" "24"
+        ./scripts/download-openvino-runtime.sh "2025.3.0.0.dev20250805" "build/native" "24"
         
     - name: Set OPENVINO_RUNTIME_PATH for Linux
       if: matrix.os == 'ubuntu-latest'
@@ -81,6 +99,27 @@ jobs:
         RUNTIME_PATH="$(pwd)/build/native/runtimes/linux-x64/native"
         echo "OPENVINO_RUNTIME_PATH=$RUNTIME_PATH" >> $GITHUB_ENV
         echo "Set OPENVINO_RUNTIME_PATH to: $RUNTIME_PATH"
+
+    - name: Download Whisper model (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: pwsh
+      run: |
+        ./scripts/download-whisper-model.ps1
+
+    - name: Download Whisper model (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        chmod +x scripts/download-whisper-model.sh
+        ./scripts/download-whisper-model.sh
+
+    - name: Set WHISPER_MODEL_PATH
+      run: |
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          echo "WHISPER_MODEL_PATH=$(pwd)\Models\whisper-tiny-fp16-ov" >> $GITHUB_ENV
+        else
+          echo "WHISPER_MODEL_PATH=$(pwd)/Models/whisper-tiny-fp16-ov" >> $GITHUB_ENV
+        fi
+      shell: bash
 
     - name: Build solution
       run: dotnet build OpenVINO.NET.sln --configuration Release --no-restore

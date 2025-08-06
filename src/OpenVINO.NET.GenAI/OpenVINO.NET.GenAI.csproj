@@ -77,21 +77,40 @@
 
   <!-- Copy native libraries to output directory for development/testing -->
   <Target Name="CopyNativeLibraries" BeforeTargets="Build">
+    <!-- First try environment variable path (CI/CD) -->
+    <PropertyGroup>
+      <RuntimePath Condition="'$(OPENVINO_RUNTIME_PATH)' != ''">$(OPENVINO_RUNTIME_PATH)</RuntimePath>
+    </PropertyGroup>
+    
     <!-- Windows -->
-    <ItemGroup Condition="'$(OS)' == 'Windows_NT' AND Exists('..\..\build\native\runtimes\win-x64\native')">
+    <ItemGroup Condition="'$(OS)' == 'Windows_NT' AND '$(RuntimePath)' != '' AND Exists('$(RuntimePath)')">
+      <WindowsNativeLibs Include="$(RuntimePath)\*.dll" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(OS)' == 'Windows_NT' AND '@(WindowsNativeLibs)' == '' AND Exists('..\..\build\native\runtimes\win-x64\native')">
       <WindowsNativeLibs Include="..\..\build\native\runtimes\win-x64\native\*.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(WindowsNativeLibs)" 
           DestinationFolder="$(OutputPath)" 
+          SkipUnchangedFiles="true"
           Condition="'$(OS)' == 'Windows_NT' AND '@(WindowsNativeLibs)' != ''" />
+    <Message Text="Copied Windows native libraries to $(OutputPath)" 
+             Importance="high" 
+             Condition="'$(OS)' == 'Windows_NT' AND '@(WindowsNativeLibs)' != ''" />
     
     <!-- Linux -->
-    <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND Exists('../../build/native/runtimes/linux-x64/native')">
+    <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND '$(RuntimePath)' != '' AND Exists('$(RuntimePath)')">
+      <LinuxNativeLibs Include="$(RuntimePath)/*.so*" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND '@(LinuxNativeLibs)' == '' AND Exists('../../build/native/runtimes/linux-x64/native')">
       <LinuxNativeLibs Include="../../build/native/runtimes/linux-x64/native/*.so*" />
     </ItemGroup>
     <Copy SourceFiles="@(LinuxNativeLibs)" 
           DestinationFolder="$(OutputPath)" 
+          SkipUnchangedFiles="true"
           Condition="'$(OS)' != 'Windows_NT' AND '@(LinuxNativeLibs)' != ''" />
+    <Message Text="Copied Linux native libraries to $(OutputPath)" 
+             Importance="high" 
+             Condition="'$(OS)' != 'Windows_NT' AND '@(LinuxNativeLibs)' != ''" />
   </Target>
 
   <!-- Include MSBuild targets in NuGet package -->

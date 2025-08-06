@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION=${1:-"2025.3.0.0.dev20250801"}
+VERSION=${1:-"2025.3.0.0.dev20250805"}
 OUTPUT_PATH=${2:-"build/native"}
 UBUNTU_VERSION=${3:-"24"}
 
@@ -71,15 +71,46 @@ find "$RUNTIME_PATH/lib" -type f -name '*.so*' -exec cp -a --no-preserve=ownersh
 # 2️⃣  Copy TBB (handles lib/intel64/gcc layout too)
 find "$RUNTIME_PATH/3rdparty/tbb/lib" -type f -name '*.so*' -exec cp -a --no-preserve=ownership '{}' "$TARGET_PATH" \;
 
-# 3️⃣  Duplicate missing SONAME links if Intel ever forgets them
-#     (e.g., create libopenvino.so.2520 → libopenvino.so.2025.2.0.0)
+# 3️⃣  Create required symlinks for .NET library loader
 cd "$TARGET_PATH"
+
+# Create unversioned symlinks that .NET expects (e.g., libopenvino_genai_c.so → libopenvino_genai_c.so.2025.3.0.0)
+for so in *.so.*; do
+  [[ $so =~ \.so\.([0-9]+\.[0-9]+\.[0-9]+) ]] || continue
+  base="${so%%.so.*}.so"
+  
+  # Create the unversioned symlink if it doesn't exist
+  if [[ ! -e "$base" ]]; then
+    ln -sf "$so" "$base"
+    echo "Created symlink: $base → $so"
+  fi
+done
+
+# 4️⃣  Special handling for TBB - create major version symlinks
+# Handle cases like libtbb.so.12.13 → libtbb.so.12
+for so in libtbb*.so.*; do
+  [[ -f "$so" ]] || continue
+  if [[ $so =~ libtbb(.*)\.so\.([0-9]+)\.([0-9]+) ]]; then
+    suffix="${BASH_REMATCH[1]}"  # Could be empty or something like "malloc"
+    major="${BASH_REMATCH[2]}"
+    base="libtbb${suffix}.so.${major}"
+    
+    if [[ ! -e "$base" ]]; then
+      ln -sf "$so" "$base"
+      echo "Created TBB major version symlink: $base → $so"
+    fi
+  fi
+done
+
+# Also create versioned SONAME links if Intel ever forgets them
+# (e.g., create libopenvino.so.2520 → libopenvino.so.2025.2.0.0)
 for so in *_genai.so *.so; do
   [[ $so =~ \.so\.([0-9]+\.[0-9]+\.[0-9]+) ]] || continue
   base="${so%%.so.*}.so"
   shortver="${BASH_REMATCH[1]//./}"   # 25.2.0 => 2520
   [[ -e "${base}.${shortver}" ]] || ln -s "$so" "${base}.${shortver}"
 done
+
 cd - >/dev/null
 
 LIB_COUNT=$(find "$TARGET_PATH" -name "*.so" | wc -l)

@@ -1,4 +1,4 @@
-name: Run Sample App
+name: Run LLM Sample App
 
 on:
   pull_request:

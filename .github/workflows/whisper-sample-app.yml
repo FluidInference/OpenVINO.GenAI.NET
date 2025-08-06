@@ -1,0 +1,379 @@
+name: Run Whisper Sample App
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'samples/WhisperDemo/**'
+      - '.github/workflows/whisper-sample-app.yml'
+      - 'scripts/download-whisper-model.*'
+      - 'scripts/download-sample-audio.*'
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: write
+
+env:
+  OPENVINO_VERSION: "2025.3.0.0.dev20250805"
+
+jobs:
+  whisper-demo:
+    name: Whisper Demo
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install Visual C++ Redistributables
+      shell: pwsh
+      run: |
+        Write-Host "Installing Visual C++ Redistributables..."
+        
+        # Download and install VC++ redistributables
+        $vcRedistUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        $vcRedistPath = "vc_redist.x64.exe"
+        
+        try {
+          Invoke-WebRequest -Uri $vcRedistUrl -OutFile $vcRedistPath
+          
+          # Install silently
+          Start-Process -FilePath $vcRedistPath -ArgumentList "/install", "/quiet", "/norestart" -Wait
+          
+          Write-Host "✓ Visual C++ Redistributables installed successfully"
+        } catch {
+          Write-Host "Warning: Failed to install Visual C++ Redistributables: $($_.Exception.Message)"
+          Write-Host "This may cause native library loading issues"
+        } finally {
+          if (Test-Path $vcRedistPath) {
+            Remove-Item $vcRedistPath -Force
+          }
+        }
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Cache Whisper Model
+      uses: actions/cache@v4
+      with:
+        path: ./Models/whisper-tiny-fp16-ov
+        key: whisper-model-v1
+        restore-keys: |
+          whisper-model-
+
+    # Audio file is now included in the repository
+
+    - name: Restore dependencies
+      run: dotnet restore OpenVINO.NET.sln
+
+    - name: Cache OpenVINO Runtime
+      id: cache-openvino-windows
+      uses: actions/cache@v4
+      with:
+        path: build/native/runtimes/win-x64/native
+        key: openvino-runtime-windows-${{ env.OPENVINO_VERSION }}
+
+    - name: Download OpenVINO Runtime
+      if: steps.cache-openvino-windows.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        ./scripts/download-openvino-runtime.ps1 -Version "${{ env.OPENVINO_VERSION }}" -OutputPath "build/native"
+        
+    - name: Set OPENVINO_RUNTIME_PATH
+      shell: pwsh
+      run: |
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+
+    - name: Verify OpenVINO Runtime Installation
+      shell: pwsh
+      run: |
+        Write-Host "Verifying OpenVINO Runtime Installation..."
+        Write-Host "========================================"
+        
+        $runtimePath = "build/native/runtimes/win-x64/native"
+        
+        if (Test-Path $runtimePath) {
+          Write-Host "✓ Runtime directory exists: $runtimePath"
+          
+          # List all files in the runtime directory
+          Write-Host ""
+          Write-Host "Files in runtime directory:"
+          Get-ChildItem -Path $runtimePath -Recurse | Format-Table Name, Length, LastWriteTime
+          
+          # Check for specific required DLLs
+          $requiredDlls = @("openvino_genai_c.dll", "openvino_c.dll", "tbb12.dll")
+          $missingDlls = @()
+          
+          foreach ($dll in $requiredDlls) {
+            $found = Get-ChildItem -Path $runtimePath -Filter $dll -Recurse -ErrorAction SilentlyContinue
+            if ($found) {
+              Write-Host "✓ Found required DLL: $dll at $($found[0].FullName)"
+              # Check file size to ensure it's not corrupted
+              if ($found[0].Length -eq 0) {
+                Write-Host "  WARNING: DLL has zero size - may be corrupted!"
+              }
+            } else {
+              Write-Host "✗ Missing required DLL: $dll"
+              $missingDlls += $dll
+            }
+          }
+          
+          # Check for CPU extensions
+          $cpuExtensions = Get-ChildItem -Path $runtimePath -Filter "*cpu*.dll" -ErrorAction SilentlyContinue
+          if ($cpuExtensions) {
+            Write-Host "✓ Found CPU extensions: $($cpuExtensions.Count) files"
+            $cpuExtensions | ForEach-Object { Write-Host "  - $($_.Name)" }
+          } else {
+            Write-Host "⚠ No CPU extension DLLs found - INT4 models may not work"
+          }
+          
+          if ($missingDlls.Count -eq 0) {
+            Write-Host ""
+            Write-Host "✓ All required DLLs are present"
+          } else {
+            Write-Host ""
+            Write-Host "❌ Missing DLLs: $($missingDlls -join ', ')"
+            Write-Host "This will cause runtime failures"
+            exit 1
+          }
+        } else {
+          Write-Host "❌ Runtime directory not found: $runtimePath"
+          exit 1
+        }
+
+    - name: Download Whisper Model
+      shell: pwsh
+      run: |
+        ./scripts/download-whisper-model.ps1
+
+    - name: Verify Test Audio File
+      shell: pwsh
+      run: |
+        $audioPath = "how_are_you_doing_today.wav"
+        if (Test-Path $audioPath) {
+          Write-Host "✓ Test audio file found: $audioPath"
+          $fileInfo = Get-Item $audioPath
+          Write-Host "  Size: $($fileInfo.Length) bytes"
+        } else {
+          Write-Host "❌ Test audio file not found: $audioPath"
+          exit 1
+        }
+
+    - name: Build solution
+      run: dotnet build OpenVINO.NET.sln --configuration Release
+
+    - name: Test Model and OpenVINO Info
+      shell: pwsh
+      timeout-minutes: 2
+      run: |
+        Write-Host "OpenVINO and Model Information"
+        Write-Host "==============================="
+        
+        # Check OpenVINO version
+        $runtimePath = "$(Get-Location)\build\native\runtimes\win-x64\native"
+        Write-Host "Runtime Path: $runtimePath"
+        
+        # List OpenVINO DLLs with version info
+        $ovDlls = Get-ChildItem -Path $runtimePath -Filter "openvino*.dll" -ErrorAction SilentlyContinue
+        foreach ($dll in $ovDlls) {
+          Write-Host "DLL: $($dll.Name) - Size: $($dll.Length) bytes"
+        }
+        
+        # Check model structure
+        Write-Host ""
+        Write-Host "Model Structure Check"
+        Write-Host "--------------------"
+        $modelPath = "$(Get-Location)\Models\whisper-tiny-fp16-ov"
+        
+        if (Test-Path $modelPath) {
+          Write-Host "Model directory: $modelPath"
+          
+          # Check XML files for model details
+          $encoderXml = Join-Path $modelPath "openvino_encoder_model.xml"
+          if (Test-Path $encoderXml) {
+            # Check if it mentions INT4 or quantization
+            $xmlContent = Get-Content $encoderXml -Raw
+            if ($xmlContent -match "INT4|int4|I4|quantiz") {
+              Write-Host "Model appears to be INT4 quantized"
+            }
+            if ($xmlContent -match "<layer.*type=.*CPU.*>") {
+              Write-Host "Model has CPU-specific layers"
+            }
+          }
+          
+          $requiredFiles = @(
+            "openvino_encoder_model.xml",
+            "openvino_encoder_model.bin",
+            "openvino_decoder_model.xml",
+            "openvino_decoder_model.bin"
+          )
+          
+          foreach ($file in $requiredFiles) {
+            $path = Join-Path $modelPath $file
+            if (Test-Path $path) {
+              $info = Get-Item $path
+              Write-Host "✓ $file : $([math]::Round($info.Length/1MB, 2)) MB"
+            } else {
+              Write-Host "✗ Missing: $file"
+              exit 1
+            }
+          }
+          
+          Write-Host ""
+          Write-Host "Model files check passed."
+        } else {
+          Write-Host "ERROR: Model directory not found: $modelPath"
+          exit 1
+        }
+
+    - name: Setup Environment for OpenVINO
+      shell: pwsh
+      run: |
+        # Set the OpenVINO runtime path - this is where the DLLs are actually located
+        $runtimePath = "$(Get-Location)/build/native/runtimes/win-x64/native"
+        
+        # Set OPENVINO_RUNTIME_PATH environment variable (prioritized by NativeLibraryLoader)
+        "OPENVINO_RUNTIME_PATH=$runtimePath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+        # Also add to PATH for compatibility
+        $currentPath = $env:PATH
+        $newPath = "$runtimePath;$currentPath"
+        "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+        Write-Host "Set OPENVINO_RUNTIME_PATH to: $runtimePath"
+        Write-Host "Added OpenVINO runtime to PATH: $runtimePath"
+        Write-Host "Verifying PATH update..."
+        Write-Host "PATH now contains:"
+        ($newPath -split ';') | ForEach-Object { Write-Host "  $_" }
+
+    - name: Run WhisperDemo
+      shell: pwsh
+      timeout-minutes: 5
+      run: |
+        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        
+        # Get absolute paths
+        $modelPath = "$(Get-Location)\Models\whisper-tiny-fp16-ov"
+        $audioFile = "$(Get-Location)\how_are_you_doing_today.wav"
+        
+        # Set environment variable for model path
+        $env:WHISPER_MODEL_PATH = $modelPath
+        
+        Write-Host "Model Path: $modelPath"
+        Write-Host "Audio File: $audioFile"
+        Write-Host "Checking if model exists..."
+        if (Test-Path $modelPath) {
+          Write-Host "Model directory found"
+          Get-ChildItem $modelPath | Select-Object Name | Out-String | Write-Host
+        } else {
+          Write-Host "WARNING: Model directory not found at $modelPath"
+        }
+        
+        # Navigate to WhisperDemo for binary output
+        Set-Location samples\WhisperDemo
+        
+        $output = @()
+        $output += "# Whisper Sample App Results - Windows x64"
+        $output += ""
+        $output += "**Generated:** $timestamp"
+        $output += "**Platform:** win-x64"
+        $output += "**Model:** whisper-tiny-fp16-ov"
+        $output += ""
+        
+        # Run WhisperDemo with the test audio file
+        $output += "## Transcription Results"
+        $output += ""
+        $output += "### how_are_you_doing_today.wav"
+        $output += "``````"
+        
+        Write-Host "Processing: how_are_you_doing_today.wav"
+        
+        try {
+          # Use Start-Process with timeout to prevent hanging
+          $process = Start-Process -FilePath "dotnet" -ArgumentList "run", "--configuration", "Release", "--", "`"$modelPath`"", "`"$audioFile`"" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "temp_output.txt" -RedirectStandardError "temp_error.txt"
+          
+          # Wait max 30 seconds
+          if (!$process.WaitForExit(30000)) {
+            $process.Kill()
+            $output += "Error: Process timed out after 30 seconds"
+          } else {
+            $stdout = Get-Content "temp_output.txt" -Raw -ErrorAction SilentlyContinue
+            $stderr = Get-Content "temp_error.txt" -Raw -ErrorAction SilentlyContinue
+            if ($stdout) { $output += $stdout }
+            if ($stderr) { $output += "STDERR: $stderr" }
+          }
+          
+          Remove-Item "temp_output.txt", "temp_error.txt" -ErrorAction SilentlyContinue
+        } catch {
+          $output += "Error: $($_.Exception.Message)"
+        }
+        
+        $output += "``````"
+        $output += ""
+        
+        # Save and display output
+        $output | Out-File -FilePath "whisper-results.md" -Encoding UTF8
+        Write-Host "`n=== Results ===`n"
+        Get-Content "whisper-results.md" | Write-Host
+        Write-Host "`n=== End Results ===`n"
+
+    - name: Upload Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: whisper-results-win-x64
+        path: ./samples/WhisperDemo/whisper-results.md
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const resultsPath = './samples/WhisperDemo/whisper-results.md';
+          
+          if (fs.existsSync(resultsPath)) {
+            const results = fs.readFileSync(resultsPath, 'utf8');
+            
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Whisper Sample App Results - Windows x64')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: results
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: results
+              });
+            }
+          }

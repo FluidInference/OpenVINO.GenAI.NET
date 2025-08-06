@@ -28,4 +28,39 @@
     <ProjectReference Include="..\..\src\OpenVINO.NET.GenAI\OpenVINO.NET.GenAI.csproj" />
   </ItemGroup>
 
+  <!-- Copy native libraries directly to test output directory -->
+  <Target Name="CopyNativeLibrariesToTestOutput" AfterTargets="Build">
+    <PropertyGroup>
+      <RuntimePath Condition="'$(OPENVINO_RUNTIME_PATH)' != ''">$(OPENVINO_RUNTIME_PATH)</RuntimePath>
+    </PropertyGroup>
+    
+    <!-- Windows -->
+    <ItemGroup Condition="'$(OS)' == 'Windows_NT' AND '$(RuntimePath)' != '' AND Exists('$(RuntimePath)')">
+      <TestNativeLibs Include="$(RuntimePath)\*.dll" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(OS)' == 'Windows_NT' AND '@(TestNativeLibs)' == '' AND Exists('..\..\build\native\runtimes\win-x64\native')">
+      <TestNativeLibs Include="..\..\build\native\runtimes\win-x64\native\*.dll" />
+    </ItemGroup>
+    
+    <!-- Linux -->
+    <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND '$(RuntimePath)' != '' AND Exists('$(RuntimePath)')">
+      <TestNativeLibs Include="$(RuntimePath)/*.so*" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(OS)' != 'Windows_NT' AND '@(TestNativeLibs)' == '' AND Exists('../../build/native/runtimes/linux-x64/native')">
+      <TestNativeLibs Include="../../build/native/runtimes/linux-x64/native/*.so*" />
+    </ItemGroup>
+    
+    <Copy SourceFiles="@(TestNativeLibs)" 
+          DestinationFolder="$(OutputPath)" 
+          SkipUnchangedFiles="true"
+          Condition="'@(TestNativeLibs)' != ''" />
+    
+    <Message Text="[Test Project] Copied @(TestNativeLibs->Count()) native libraries to $(OutputPath)" 
+             Importance="high" 
+             Condition="'@(TestNativeLibs)' != ''" />
+    
+    <Warning Text="[Test Project] No native libraries found to copy. Checked: $(RuntimePath) and relative paths." 
+             Condition="'@(TestNativeLibs)' == ''" />
+  </Target>
+
 </Project>
