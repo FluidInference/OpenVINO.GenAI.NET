@@ -65,7 +65,9 @@
       "Bash(C:UsersbrandDocumentsIntelOpenVINOopenvino_c_samples_buildintel64Releasewhisper_speech_recognition_c.exe \"C:\\Users\\brand\\code\\OpenVINO.GenAI.NET\\Models\\whisper-tiny-int4-ov-npu\" \"C:\\Users\\brand\\code\\OpenVINO.GenAI.NET\\how_are_you_doing_today.wav\" NPU)",
       "Bash(.whisper_speech_recognition_c.exe:*)",
       "Bash(Remove-Item -Path \"temp_package.zip\", \"temp_package_extract\" -Recurse -Force)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(timeout:*)",
+      "Bash(StreamingTest.exe)"
     ],
     "deny": []
   }
