@@ -9,35 +9,17 @@ This sample demonstrates using the OpenVINO.NET Whisper pipeline for speech reco
 
 ## Usage
 
+Download a model from: https://huggingface.co/collections/FluidInference/openvino-npu-6877c0392d32707ed3e7bf35
+
 ### Basic transcription
 ```bash
-dotnet run -- --audio=path/to/audio.wav
+ dotnet run --project .\samples\WhisperDemo\ .\Models\whisper-large-v3-turbo-fp16-ov-npu\   how_are_you_doing_today.wav
 ```
 
-### With specific device
 ```bash
-dotnet run -- --audio=path/to/audio.wav --device=GPU
-```
+ dotnet run --project .\samples\WhisperDemo\ .\Models\whisper-large-v3-turbo-fp16-ov-npu\   how_are_you_doing_today.wav  NPU
+ ```
 
-### With timestamps
-```bash
-dotnet run -- --audio=path/to/audio.wav --timestamps
-```
-
-### Translation to English
-```bash
-dotnet run -- --audio=path/to/audio.wav --translate
-```
-
-### Benchmark mode
-```bash
-dotnet run -- --benchmark
-```
-
-### Interactive mode
-```bash
-dotnet run
-```
 
 ## Command Line Options
 
