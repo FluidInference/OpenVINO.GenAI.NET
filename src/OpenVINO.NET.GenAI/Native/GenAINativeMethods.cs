@@ -14,7 +14,7 @@ internal static class GenAINativeMethods
     #region LLM Pipeline Methods
 
     /// <summary>
-    /// Create LLM pipeline
+    /// Create LLM pipeline without properties
     /// </summary>
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     internal static extern ov_status_e ov_genai_llm_pipeline_create(
@@ -22,6 +22,48 @@ internal static class GenAINativeMethods
         [MarshalAs(UnmanagedType.LPStr)] string device,
         nuint property_args_size,
         [Out] out IntPtr pipe);
+
+    /// <summary>
+    /// Create LLM pipeline with one property (2 args)
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi, EntryPoint = "ov_genai_llm_pipeline_create")]
+    internal static extern ov_status_e ov_genai_llm_pipeline_create_with_1_property(
+        [MarshalAs(UnmanagedType.LPStr)] string models_path,
+        [MarshalAs(UnmanagedType.LPStr)] string device,
+        nuint property_args_size,
+        [Out] out IntPtr pipe,
+        [MarshalAs(UnmanagedType.LPStr)] string prop1_key,
+        [MarshalAs(UnmanagedType.LPStr)] string prop1_value);
+
+    /// <summary>
+    /// Create LLM pipeline with two properties (4 args)
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi, EntryPoint = "ov_genai_llm_pipeline_create")]
+    internal static extern ov_status_e ov_genai_llm_pipeline_create_with_2_properties(
+        [MarshalAs(UnmanagedType.LPStr)] string models_path,
+        [MarshalAs(UnmanagedType.LPStr)] string device,
+        nuint property_args_size,
+        [Out] out IntPtr pipe,
+        [MarshalAs(UnmanagedType.LPStr)] string prop1_key,
+        [MarshalAs(UnmanagedType.LPStr)] string prop1_value,
+        [MarshalAs(UnmanagedType.LPStr)] string prop2_key,
+        [MarshalAs(UnmanagedType.LPStr)] string prop2_value);
+
+    /// <summary>
+    /// Create LLM pipeline with three properties (6 args)
+    /// </summary>
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi, EntryPoint = "ov_genai_llm_pipeline_create")]
+    internal static extern ov_status_e ov_genai_llm_pipeline_create_with_3_properties(
+        [MarshalAs(UnmanagedType.LPStr)] string models_path,
+        [MarshalAs(UnmanagedType.LPStr)] string device,
+        nuint property_args_size,
+        [Out] out IntPtr pipe,
+        [MarshalAs(UnmanagedType.LPStr)] string prop1_key,
+        [MarshalAs(UnmanagedType.LPStr)] string prop1_value,
+        [MarshalAs(UnmanagedType.LPStr)] string prop2_key,
+        [MarshalAs(UnmanagedType.LPStr)] string prop2_value,
+        [MarshalAs(UnmanagedType.LPStr)] string prop3_key,
+        [MarshalAs(UnmanagedType.LPStr)] string prop3_value);
 
     /// <summary>
     /// Free LLM pipeline
