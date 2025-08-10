@@ -40,6 +40,90 @@ public sealed class LLMPipeline : IDisposable
     }
 
     /// <summary>
+    /// Initializes a new instance of the LLMPipeline class with properties
+    /// </summary>
+    /// <param name="modelPath">Path to the model directory</param>
+    /// <param name="device">Device to run on (e.g., "CPU", "GPU")</param>
+    /// <param name="properties">Additional properties (e.g., CACHE_DIR)</param>
+    public LLMPipeline(string modelPath, string device, Dictionary<string, string>? properties)
+    {
+        if (string.IsNullOrEmpty(modelPath))
+            throw new ArgumentException("Model path cannot be null or empty", nameof(modelPath));
+        if (string.IsNullOrEmpty(device))
+            throw new ArgumentException("Device cannot be null or empty", nameof(device));
+
+        // Ensure native libraries are loaded before any P/Invoke calls
+        NativeLibraryLoader.EnsureLoaded();
+
+        if (properties != null && properties.Count > 0)
+        {
+            ov_status_e status;
+            IntPtr handle;
+            
+            // Use the appropriate overload based on the number of properties
+            switch (properties.Count)
+            {
+                case 1:
+                    var prop1 = properties.First();
+                    status = GenAINativeMethods.ov_genai_llm_pipeline_create_with_1_property(
+                        modelPath,
+                        device,
+                        2, // 1 property = 2 args (key + value)
+                        out handle,
+                        prop1.Key,
+                        prop1.Value);
+                    break;
+                    
+                case 2:
+                    var props2 = properties.ToArray();
+                    status = GenAINativeMethods.ov_genai_llm_pipeline_create_with_2_properties(
+                        modelPath,
+                        device,
+                        4, // 2 properties = 4 args
+                        out handle,
+                        props2[0].Key,
+                        props2[0].Value,
+                        props2[1].Key,
+                        props2[1].Value);
+                    break;
+                    
+                case 3:
+                    var props3 = properties.ToArray();
+                    status = GenAINativeMethods.ov_genai_llm_pipeline_create_with_3_properties(
+                        modelPath,
+                        device,
+                        6, // 3 properties = 6 args
+                        out handle,
+                        props3[0].Key,
+                        props3[0].Value,
+                        props3[1].Key,
+                        props3[1].Value,
+                        props3[2].Key,
+                        props3[2].Value);
+                    break;
+                    
+                default:
+                    throw new ArgumentException("Maximum of 3 properties supported. If you need more, please extend the P/Invoke declarations.", nameof(properties));
+            }
+
+            OpenVINOGenAIException.ThrowIfError(status, "create LLM pipeline with properties");
+            _handle = new LLMPipelineSafeHandle(handle, true);
+        }
+        else
+        {
+            // No properties, use the simpler API
+            var status = GenAINativeMethods.ov_genai_llm_pipeline_create(
+                modelPath,
+                device,
+                0,
+                out var handle);
+
+            OpenVINOGenAIException.ThrowIfError(status, "create LLM pipeline");
+            _handle = new LLMPipelineSafeHandle(handle, true);
+        }
+    }
+
+    /// <summary>
     /// Generates text synchronously
     /// </summary>
     /// <param name="prompt">The input prompt</param>
